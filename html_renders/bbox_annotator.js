@@ -1,0 +1,1 @@
+/Users/schwenk/wrk/animation_gan/interface_dev/bbox_annotator.js

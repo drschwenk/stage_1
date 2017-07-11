@@ -1,0 +1,135 @@
+<html>
+<head>
+<title>Character Annotation</title>
+<link rel="stylesheet" href="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/themes/smoothness/jquery-ui.css" />
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+<script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.js"></script>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js'></script>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/json3/3.3.2/json3.min.js'></script>
+<script src='https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js'></script>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.6.0/underscore-min.js'></script>
+<script type='text/javascript' src='https://s3.amazonaws.com/mturk-public/externalHIT_v1.js'></script>
+<script src="bbox_annotator.js"></script>
+</head>
+<body>
+
+<h1>Character Annotation</h1>
+<div id="bbox_annotator" style="display:inline-block"></div>
+<div style="display:inline-block;vertical-align:top;">
+  <div>
+    <span>Input method: </span>
+    <a href="?input=text">enter  description</a> |
+    <a href="?input=select">main characters</a> |
+  </div>
+  <!-- <div>
+    <textarea id="annotation_data" name="annotation" rows="30" cols="50" style="font-family:monospace;" readonly></textarea>
+  </div> -->
+  <script type='text/json' id='input'>
+
+</script>
+  <div>
+    <input id="annotation_data" name="annotation_data" type="hidden" />
+    <br>
+    <input id="reset_button" type="reset" />
+    <input id="other_character" type="button" value="Other Character"/>
+    <form id='results-form' method='post' action='dummy' class='text-center'>
+      <input type='hidden' value='' name='assignmentId' id='assignmentId'/>
+      <input type='hidden' value='' name='output' id='output'/>
+      <br>
+      <input type='submit' class='btn btn-lg btn-success' id='submit-btn' value='Submit' disabled/>
+    </form>
+  </div>
+</div>
+
+<script>
+var simpleamt = (function() {
+
+  // Copied from http://james.padolsey.com/javascript/bujs-1-getparameterbyname/
+  function getUrlParam(name) {
+    var match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match ? decodeURIComponent(match[1].replace(/\+/g, ' ')) : null;
+  }
+
+  function getInput(default_input) {
+    if (typeof(default_input) === 'undefined') default_input = null;
+    try {
+      return JSON.parse($('#input').html());
+    } catch (e) {
+      return default_input;
+    }
+  }
+
+  function setOutput(output) {
+    $('#output').val(JSON.stringify(output));
+  }
+
+  function isPreview() {
+    var assignment_id = getUrlParam('assignmentId');
+    if (assignment_id === null) return false;
+    return assignment_id == 'ASSIGNMENT_ID_NOT_AVAILABLE';
+  }
+
+  function setupSubmit() {
+    var submit_to = getUrlParam('turkSubmitTo');
+    $('#results-form').attr('action', submit_to + '/mturk/externalSubmit');
+    $('#assignmentId').val(getUrlParam('assignmentId'));
+  }
+
+  return {
+    getInput: getInput,
+    setOutput: setOutput,
+    isPreview: isPreview,
+    setupSubmit: setupSubmit,
+  }
+
+})();
+</script>
+
+<script type="text/javascript">
+function getParameterByName(name) {
+  var match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+  return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+$(document).ready(function() {
+  var inputMethod = getParameterByName("input");
+  var assignment_id = turkGetParam('assignmentId', "");
+  var image_url =  "https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/still_frames/s_01_e_26_shot_006556_006630_10.png";
+  var image_id = "s_01_e_26_shot_006556_006630_10.png";
+  // Initialize the bounding-box annotator.
+  var annotator = new BBoxAnnotator({
+    url: image_url,
+    // input_method: inputMethod || "fixed",
+    // input_method: "text",
+    labels: ["Fred", "Barney", "Wilma"],
+    onchange: function(entries) {
+      // Input the text area on change. Use "hidden" input tag unless debugging.
+      // <input id="annotation_data" name="annotation_data" type="hidden" />
+      $("#annotation_data").val(JSON.stringify(entries))
+    }
+  });
+  // Initialize the reset button.
+  $("#reset_button").click(function(e) {
+    annotator.clear_all();
+  })
+  $("#other_character").click(function(e) {
+    console.log('here');
+  })
+  $('#submit-btn').prop('disabled', false);
+  simpleamt.setupSubmit();
+  $('#submit-btn').click(function() {
+    descriptions = $('#annotation_data').val();
+    console.log('submitted');
+    console.log(descriptions);
+    // if (_.any(descriptions, function(d) { return d.length < 0; })) {
+    //   alert('Descriptions not long enough. Correct before submitting.');
+    //   return false;
+    // }
+
+    simpleamt.setOutput({'stillID': image_id, 'chracterBoxes': descriptions});
+  });
+
+});
+</script>
+
+</body>
+</html>

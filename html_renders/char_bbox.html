@@ -9,29 +9,50 @@
 <script src='https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js'></script>
 <script src='https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.6.0/underscore-min.js'></script>
 <script type='text/javascript' src='https://s3.amazonaws.com/mturk-public/externalHIT_v1.js'></script>
-<script src="bbox_annotator.js"></script>
+<script src="https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/interface_elems/bbox_annotator.js"></script>
 </head>
 <body>
 
-<h1>Character Annotation</h1>
+<h2>Label Characters from the Flintstones</h2>
+<p>
+    Please use your mouse to draw a box around every character in this image.
+    You should start with any and all of the main characters shown below. For
+    these 10 main characters, a menu will appear after you've drawn a box, and you should
+    select the correct name to label that character. If there are additional characters not
+    in the main 10, press the "Label Other Characters" button, and a new
+    image will pop up below to work on. After drawing boxes around one of these characters,
+    a box will appear for you to enter a short description. For example-
+    "man with bow tie", "construction worker", or "circus performer".
+    If there are no characters present, draw a box anywhere and select the label NO CHARACTERS.
+</p>
+<p>
+Here are three examples of the task:
+<a href="https://s3-us-west-2.amazonaws.com//ai2-vision-animation-gan/annotation_data/interface_elems/instructions_stage_1/example_mains.gif">
+  all main characters...
+</a>
+<a href="https://s3-us-west-2.amazonaws.com//ai2-vision-animation-gan/annotation_data/interface_elems/instructions_stage_1/example_minors.gif">
+  main characters and other characters...
+</a>
+<a href="https://s3-us-west-2.amazonaws.com//ai2-vision-animation-gan/annotation_data/interface_elems/instructions_stage_1/example_none.gif">
+  and no characters.
+</a>
+</p>
+<br>
 <div id="bbox_annotator" style="display:inline-block"></div>
 <div style="display:inline-block;vertical-align:top;">
-  <div>
-    <span>Input method: </span>
-    <a href="?input=text">enter  description</a> |
-    <a href="?input=select">main characters</a> |
-  </div>
   <!-- <div>
     <textarea id="annotation_data" name="annotation" rows="30" cols="50" style="font-family:monospace;" readonly></textarea>
   </div> -->
   <script type='text/json' id='input'>
-
 </script>
   <div>
-    <input id="annotation_data" name="annotation_data" type="hidden" />
+    <input id="annotation_data_mains" name="annotation_data_mains" type="hidden" />
     <br>
-    <input id="reset_button" type="reset" />
-    <input id="other_character" type="button" value="Other Character"/>
+    <input id="annotation_data_others" name="annotation_data_others" type="hidden" />
+
+    <br>
+    <!-- <input id="reset_button" type="reset" /> -->
+    <input id="other_character" type="button" value="Label Other Characters"/>
     <form id='results-form' method='post' action='dummy' class='text-center'>
       <input type='hidden' value='' name='assignmentId' id='assignmentId'/>
       <input type='hidden' value='' name='output' id='output'/>
@@ -40,6 +61,10 @@
     </form>
   </div>
 </div>
+<h3> These are the main characters: </h3>
+<img src="https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/interface_elems/mc_row1.png">
+<img src="https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/interface_elems/mc_row2.png">
+
 
 <script>
 var simpleamt = (function() {
@@ -93,18 +118,39 @@ function getParameterByName(name) {
 $(document).ready(function() {
   var inputMethod = getParameterByName("input");
   var assignment_id = turkGetParam('assignmentId', "");
-  var image_url =  "https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/still_frames/s_01_e_26_shot_006556_006630_10.png";
-  var image_id = "s_01_e_26_shot_006556_006630_10.png";
+  var image_url =  "https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/still_frames/s_01_e_15_shot_031805_031879_70.png";
+  var image_id = "s_01_e_15_shot_031805_031879_70.png";
+  // var image_url =  "example.jpg";
   // Initialize the bounding-box annotator.
   var annotator = new BBoxAnnotator({
     url: image_url,
-    // input_method: inputMethod || "fixed",
-    // input_method: "text",
-    labels: ["Fred", "Barney", "Wilma"],
+    input_method: inputMethod || "select",
+    // input_method: "select",
+    labels: ["Fred",
+             "Barney",
+              "Wilma",
+              "Betty",
+              "Pebbles",
+              "Bamm Bamm",
+              "Dino",
+              "Mr Slate",
+              "Baby Puss",
+              "Hoppy",
+              "NO CHARACTERS"
+              ],
     onchange: function(entries) {
+      if (entries.length > 0 &&
+          assignment_id != "" &&
+          assignment_id != "ASSIGNMENT_ID_NOT_AVAILABLE") {
+          $('#submit-btn').prop('disabled', false);
+      }
+      else {
+        $("#submitButton").attr("disabled", "disabled");
+
+      }
       // Input the text area on change. Use "hidden" input tag unless debugging.
       // <input id="annotation_data" name="annotation_data" type="hidden" />
-      $("#annotation_data").val(JSON.stringify(entries))
+      $("#annotation_data_mains").val(JSON.stringify(entries))
     }
   });
   // Initialize the reset button.
@@ -112,20 +158,41 @@ $(document).ready(function() {
     annotator.clear_all();
   })
   $("#other_character").click(function(e) {
-    console.log('here');
+    var new_annotator = new BBoxAnnotator({
+      url: image_url,
+      input_method: "text",
+      // input_method: "select",
+      labels: ["Fred", "Barney", "Wilma"],
+      onchange: function(entries) {
+        // Input the text area on change. Use "hidden" input tag unless debugging.
+        // <input id="annotation_data" name="annotation_data" type="hidden" />
+        $("#annotation_data_others").val(JSON.stringify(entries))
+      }
+    });
   })
-  $('#submit-btn').prop('disabled', false);
+  $("#submitButton").attr("disabled", "disabled");
+  // $('#submit-btn').prop('disabled', false);
   simpleamt.setupSubmit();
   $('#submit-btn').click(function() {
-    descriptions = $('#annotation_data').val();
-    console.log('submitted');
-    console.log(descriptions);
+    try {
+      var main_annotations = JSON.parse($('#annotation_data_mains').val());
+    }
+      catch(e) {
+        var main_annotations = JSON.parse("[]");
+    }
+    try {
+      var other_annotations = JSON.parse($('#annotation_data_others').val());
+    }
+      catch(e) {
+        var other_annotations = JSON.parse("[]");
+    }
+    combined_annotations = main_annotations.concat(other_annotations);
     // if (_.any(descriptions, function(d) { return d.length < 0; })) {
     //   alert('Descriptions not long enough. Correct before submitting.');
     //   return false;
     // }
 
-    simpleamt.setOutput({'stillID': image_id, 'chracterBoxes': descriptions});
+    simpleamt.setOutput({'stillID': image_id, 'characterBoxes': JSON.stringify(combined_annotations)});
   });
 
 });

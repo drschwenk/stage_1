@@ -175,13 +175,11 @@ def draw_clusters(img_path, clustered_boxes, direction='rows', image=np.array([]
 
     if not image.any():
         image = cv2.imread(img_path)
-        print(img_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     max_height, max_width, channels = image.shape
 
     for idx, cluster in enumerate(clustered_boxes):
         if len(cluster) > 1:
-            print('random')
             color = random_color()
             for box in cluster:
                 limit_rect(box, max_width, max_height)
@@ -257,7 +255,6 @@ def convert_nms_boxes(boxes):
 
 
 def format_clusters(selected_boxes, dupe_boxes):
-    print(dupe_boxes)
     clusters = {box['idx']: [box['box'].reshape(2, 2)] for box in selected_boxes}
     for box in dupe_boxes:
         if 'duplicate_of' in box.keys():
@@ -278,7 +275,6 @@ def draw_image_and_labels(still_annos, clusterer, frame_number=1, n_turkers=3):
         base_image = draw_clusters(os.path.join(image_base_dir, still_id), formatted_all, color=(128, 128, 128))
         if not box_clusters:
             formatted_boxes = format_clusters(consensus_boxes, []).values()
-            print('here')
         boxes_formatted = format_clusters(consensus_boxes, box_clusters)
         consensus_formatted = format_clusters(consensus_boxes, consensus_boxes)
         consensus_formatted, box_clusters = consensus_formatted.values(), boxes_formatted.values()
@@ -318,7 +314,6 @@ def select_labels(boxes_per_frame, iou_thresh):
     char_matches_collapsed = find_matches(char_matches)
     for matched_chars in char_matches_collapsed:
         possible_labels = [all_char_boxes[idx]['label'] for idx in matched_chars]
-        print(possible_labels)
     return char_matches
 
 

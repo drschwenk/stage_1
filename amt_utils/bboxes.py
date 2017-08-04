@@ -1,4 +1,5 @@
 import numpy as np
+import scipy as st
 import cv2
 import os
 import PIL.Image as Image
@@ -34,7 +35,8 @@ def comp_boxes_iou(b1, b2):
     return iou
 
 
-def comp_box_center(box):
+def comp_box_center(raw_box):
+    box = raw_box.reshape(2, 2)
     return [(box[1][0] + box[0][0]) / 2, (box[1][1] + box[0][1]) / 2]
 
 
@@ -279,9 +281,13 @@ def draw_image_and_labels(still_annos, clusterer, frame_number=1, n_turkers=3):
         consensus_formatted = format_clusters(consensus_boxes, consensus_boxes)
         consensus_formatted, box_clusters = consensus_formatted.values(), boxes_formatted.values()
 
-    img_a = draw_clusters(os.path.join(image_base_dir, still_id), box_clusters, image=base_image)
-    img_a = draw_clusters(os.path.join(image_base_dir, still_id), consensus_formatted, image=img_a)
-    return Image.fromarray(img_a), consensus_boxes
+    if set([box['label'] for box in consensus_boxes]) == set(['no characters']):
+        img_a = draw_clusters(os.path.join(image_base_dir, still_id), [], image=base_image)
+        consensus_boxes = []
+    else:
+        img_a = draw_clusters(os.path.join(image_base_dir, still_id), box_clusters, image=base_image)
+        img_a = draw_clusters(os.path.join(image_base_dir, still_id), consensus_formatted, image=img_a)
+    return Image.fromarray(img_a), consensus_boxes, all_boxes
 
 
 def find_matches(pairs):
@@ -298,7 +304,7 @@ def find_matches(pairs):
     return matches
 
 
-def select_labels(boxes_per_frame, iou_thresh):
+def select_labels_old(boxes_per_frame, iou_thresh):
     boxes_per_frame = [boxes for boxes in boxes_per_frame if boxes]
     all_char_boxes = [box for frame in boxes_per_frame for box in frame]
     char_matches = []
@@ -312,18 +318,62 @@ def select_labels(boxes_per_frame, iou_thresh):
                 if pair not in char_matches:
                     char_matches.append(pair)
     char_matches_collapsed = find_matches(char_matches)
+    labels = []
     for matched_chars in char_matches_collapsed:
         possible_labels = [all_char_boxes[idx]['label'] for idx in matched_chars]
-    return char_matches
+        labels.append(set(possible_labels))
+    return labels
+
+
+def select_labels(consensus_boxes, all_boxes, iou_thresh):
+    all_char_boxes = []
+    for frame_n, frame_boxes in enumerate(all_boxes):
+        boxes_per_char_this_frame = defaultdict(list)
+        for con_box in consensus_boxes[frame_n]:
+            boxes_per_char_this_frame[con_box['idx']].append(con_box)
+            for box in frame_boxes:
+                if 'duplicate_of' in box and box['duplicate_of'] == con_box['idx']:
+                    boxes_per_char_this_frame[box['duplicate_of']].append(box)
+        all_char_boxes.append(boxes_per_char_this_frame)
+    char_counts = [len(b) for b in all_char_boxes]
+    first_frame_chars = list(all_char_boxes[1].values())
+    all_frame_chars = deepcopy(first_frame_chars)
+    # if len(set(char_counts)) != 1:
+    #     print('number disagreement')
+    if True:
+        for frame in all_char_boxes[:1] + all_char_boxes[1:]:
+            for chars in frame.values():
+                cons_char = chars[0]
+                con_center = comp_box_center(cons_char['box'])
+                min_dist = 1000
+                closest_char = None
+                for idx, char in enumerate(first_frame_chars):
+                    other_frame_center = comp_box_center(char[0]['box'])
+                    dist = np.linalg.norm(np.array(other_frame_center) - np.array(con_center))
+                    if dist < min_dist:
+                        min_dist = dist
+                        closest_char = idx
+                all_frame_chars[closest_char].extend(chars)
+    all_labels = [[cb['label'] for cb in char if cb['label'] != 'no characters'] for char in all_frame_chars]
+    chars_with_labels = []
+    for idx, chars in enumerate(all_frame_chars):
+        chars[0]['possible_labels'] = set(all_labels[idx])
+        likely_char = st.stats.mode(all_labels[idx])
+        if likely_char[1] > 5:
+            chars[0]['chosen_labels'] = likely_char[0][0]
+        else:
+            chars[0]['chosen_labels'] = sorted(list(chars[0]['possible_labels']), key=lambda x: len(x), reverse=True)[0]
+        chars_with_labels.append(chars[0])
+    return chars_with_labels
 
 
 def draw_animation_seq(anim_seq, clusterer):
     single_still_annos = anim_seq[:3], anim_seq[3:6], anim_seq[6:]
     images_and_boxes = [draw_image_and_labels(single_still_annos[frame_n], clusterer, frame_n) for frame_n in range(3)]
-    three_frames, consensus_boxes = zip(*images_and_boxes)
-    labels = select_labels(consensus_boxes, 0.6)
+    three_frames, consensus_boxes, all_boxes = zip(*images_and_boxes)
+    labels = select_labels(consensus_boxes, all_boxes, 0.6)
     imgs_comb = np.hstack([np.asarray(i) for i in three_frames if i])
-    return Image.fromarray(imgs_comb), consensus_boxes
+    return Image.fromarray(imgs_comb), consensus_boxes, labels
 
 
 def cluster_from_annos_combined(annos, frame_number, n_turkers=3):

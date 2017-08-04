@@ -1,7 +1,9 @@
 import pickle
+from collections import defaultdict
 from jinja2 import Environment, FileSystemLoader
 import os
 import json
+
 
 from boto.mturk.qualification import PercentAssignmentsApprovedRequirement, Qualifications, Requirement
 
@@ -11,7 +13,7 @@ def create_result(assmt):
     result['h_id'] = assmt.HITId
     return result
 
-characters_present = [{'h_id': anno['h_id'], 'still_id': anno['stillID'], 'characters': set([ch['label'] for ch in json.loads(anno['characterBoxes'])])} for anno in assignment_results]
+# characters_present = [{'h_id': anno['h_id'], 'still_id': anno['stillID'], 'characters': set([ch['label'] for ch in json.loads(anno['characterBoxes'])])} for anno in assignment_results]
 
 
 def pickle_this(results_df, file_name):
@@ -30,11 +32,37 @@ def generate_task_page(s3_base_path, img_id, template_file='character_bbox.html'
     env = Environment(loader=FileSystemLoader('hit_templates'))
     template = env.get_template(template_file)
     html_dir = './html_renders'
+    html_out_file = os.path.join(html_dir, 'char_bbox.html')
+
     if not os.path.exists(html_dir):
         os.makedirs(html_dir)
     page_html = template.render(s3_uri_base=s3_base_path, image_id=img_id)
-
+    with open(html_out_file, 'w') as f:
+        f.write(page_html.encode('ascii', 'ignore').decode('utf-8'))
     return page_html
+
+
+def filter_hits_by_date(hit_group, day_of_month, hour=None):
+    import dateutil.parser as dt_parse
+
+    def check_day(hit, day_of_month):
+        return day_of_month == dt_parse.parse(hit.CreationTime).day
+
+    def check_hour(hit, hour):
+        return hour == dt_parse.parse(hit.CreationTime).hour
+
+    filtered_hits = [hit for hit in hit_group if check_day(hit, day_of_month)]
+    if hour:
+        filtered_hits = [hit for hit in filtered_hits if check_hour(hit, hour)]
+    return filtered_hits
+
+
+def filter_hits_by_completion(hit_group, n_assigments=3):
+    return [hit for hit in hit_group if int(hit.NumberOfAssignmentsCompleted) == n_assigments]
+
+
+def filter_hits_by_status(hit_group, status='Reviewable'):
+    return [hit for hit in hit_group if hit.HITStatus == status]
 
 
 def get_completed_hits(mturk_connection):
@@ -113,4 +141,3 @@ static_params = {
 }
 
 s3_base_path = 'https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/still_frames/'
-build_hit_group = [prepare_hit(s3_base_path, still, static_params) for still in stills_to_annotate]

@@ -3,10 +3,21 @@
 from boto.mturk.connection import MTurkConnection
 from boto.mturk.price import Price
 from boto.mturk.question import HTMLQuestion, ExternalQuestion
-import math
+import pickle
 
 SANDBOX_HOST = "mechanicalturk.sandbox.amazonaws.com"
 PROD_HOST = HOST = 'mechanicalturk.amazonaws.com'
+
+
+def pickle_this(results, file_name):
+    with open(file_name, 'wb') as f:
+        pickle.dump(results, f, protocol=2)
+
+
+def unpickle_this(file_name):
+    with open(file_name, 'rb') as f:
+        results_df = pickle.load(f)
+    return results_df
 
 
 def annotation_filter(annotations, hit):

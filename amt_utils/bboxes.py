@@ -62,7 +62,7 @@ def is_duplicate(k, boxes, thresh):
 
 
 def assign_boxes(selected_boxes, duplicate_boxes):
-    for b1 in duplicate_boxes:
+    for dupe_idx, b1 in enumerate(duplicate_boxes):
         assign_idx = -1
         assign_iou = -1
         for i, b2 in enumerate(selected_boxes):
@@ -71,7 +71,14 @@ def assign_boxes(selected_boxes, duplicate_boxes):
                 assign_iou = iou
                 assign_idx = b2['idx']
 
-        b1['duplicate_of'] = assign_idx
+                area_ratio = box_area(b2['box'].reshape(2, 2)) / box_area(b1['box'].reshape(2, 2))
+
+                if area_ratio > 0.8:
+                    b1['duplicate_of'] = assign_idx
+                else:
+                    selected_boxes[i] = b1
+                    b2['duplicate_of'] = b1['idx']
+                    duplicate_boxes[dupe_idx] = b2
 
 
 def nms(charBoxes, thresh=0.7):

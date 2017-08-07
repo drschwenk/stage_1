@@ -40,7 +40,7 @@ def comp_box_center(raw_box):
     return [(box[1][0] + box[0][0]) / 2, (box[1][1] + box[0][1]) / 2]
 
 
-def characterBox_to_box(charBox):
+def characterbox_to_box(charBox):
     x1 = charBox['left']
     y1 = charBox['top']
     x2 = x1 + charBox['width']
@@ -62,7 +62,7 @@ def is_duplicate(k, boxes, thresh):
 
 
 def assign_boxes(selected_boxes, duplicate_boxes):
-    for dupe_idx, b1 in enumerate(duplicate_boxes):
+    for b1 in duplicate_boxes:
         assign_idx = -1
         assign_iou = -1
         for i, b2 in enumerate(selected_boxes):
@@ -71,20 +71,13 @@ def assign_boxes(selected_boxes, duplicate_boxes):
                 assign_iou = iou
                 assign_idx = b2['idx']
 
-                area_ratio = box_area(b2['box'].reshape(2, 2)) / box_area(b1['box'].reshape(2, 2))
-
-                if area_ratio > 0.8:
-                    b1['duplicate_of'] = assign_idx
-                else:
-                    selected_boxes[i] = b1
-                    b2['duplicate_of'] = b1['idx']
-                    duplicate_boxes[dupe_idx] = b2
+        b1['duplicate_of'] = assign_idx
 
 
 def nms(charBoxes, thresh=0.7):
     boxes = [None] * len(charBoxes)
     for i, charBox in enumerate(charBoxes):
-        box = characterBox_to_box(charBox)
+        box = characterbox_to_box(charBox)
         area = charBox['width'] * charBox['height']
         label = charBox['label']
         boxes[i] = {
@@ -288,7 +281,7 @@ def draw_image_and_labels(still_annos, clusterer, frame_number=1, n_turkers=3):
         consensus_formatted = format_clusters(consensus_boxes, consensus_boxes)
         consensus_formatted, box_clusters = consensus_formatted.values(), boxes_formatted.values()
 
-    if set([box['label'] for box in consensus_boxes]) == set(['no characters']):
+    if set([box['label'] for box in consensus_boxes]) == set(['empty frame']):
         img_a = draw_clusters(os.path.join(image_base_dir, still_id), [], image=base_image)
         consensus_boxes = []
     else:
@@ -361,7 +354,7 @@ def select_labels(consensus_boxes, all_boxes, iou_thresh):
                         min_dist = dist
                         closest_char = idx
                 all_frame_chars[closest_char].extend(chars)
-    all_labels = [[cb['label'] for cb in char if cb['label'] != 'no characters'] for char in all_frame_chars]
+    all_labels = [[cb['label'] for cb in char if cb['label'] != 'empty frame'] for char in all_frame_chars]
     chars_with_labels = []
     for idx, chars in enumerate(all_frame_chars):
         chars[0]['possible_labels'] = set(all_labels[idx])

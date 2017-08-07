@@ -13,29 +13,47 @@
 </head>
 <body>
 
-<h2>Label Characters from the Flintstones</h2>
-<p>
-    Please use your mouse to draw a box around every character in this image.
-    You should start with any and all of the main characters shown below. For
-    these 10 main characters, a menu will appear after you've drawn a box, and you should
-    select the correct name to label that character. If there are additional characters not
-    in the main 10, press the "Label Other Characters" button, and a new
-    image will pop up below to work on. After drawing boxes around one of these characters,
-    a box will appear for you to enter a short description. For example-
-    "man with bow tie", "construction worker", or "circus performer".
-    If there are no characters present, draw a box anywhere and select the label NO CHARACTERS.
-</p>
+<h4>
+The goal of this task is to locate and label all of the characters in this image. <br>The task is broken up into two steps, with a bonus
+for minor characters labeled in the second step.
+</h4>
+<ul>
+    <b>Step 1: Main characters</b>
+  <li>Draw boxes around any and all of the 10 main characters that appear in this image</li>
+  <li>Scroll down to see a list of the 10 main characters if you need a reminder</li>
+  <li>After drawing a box around a main character, label them by choosing their name from the menu</li>
+  <li>The boxes should be drawn tightly, but all parts of a character should be inside it</li>
+  <br>
+  <li>If there are no characters at all in the frame, draw a box anywhere, select "Empty Frame" and submit the HIT</li>
+  <li>If there are minor characters present (characters not in the 10 below), click the "Do Step 2" button and go to Step 2</li>
+  <li>If there were only main characters you should skip Step 2 and submit the HIT now</li>
+  <br>
+  <b>Step 2: Minor characters (Bonus per character)</b>
+  <li>Draw boxes around minor characters in the same way, but instead of choosing the name from a list, you should
+    write a short description of that character</li>
+  <li>This description should be something that identifies the character, for example-
+    "man with bow tie", "construction worker", or "circus performer".</li>
+    <li>There will be a 1 cent bonus for every character you label in this step</li>
+    <li>After labeling all of minor other characters, you can submit the HIT</li>
+</ul>
 <p>
 Here are three examples of the task:
 <a href="https://s3-us-west-2.amazonaws.com//ai2-vision-animation-gan/annotation_data/interface_elems/instructions_stage_1/example_mains.gif">
   all main characters...
 </a>
+<br>
+<a href="https://s3-us-west-2.amazonaws.com//ai2-vision-animation-gan/annotation_data/interface_elems/instructions_stage_1/example_only_min.gif">
+  all minor characters...
+</a>
+<br>
 <a href="https://s3-us-west-2.amazonaws.com//ai2-vision-animation-gan/annotation_data/interface_elems/instructions_stage_1/example_minors.gif">
   main characters and other characters...
 </a>
+<br>
 <a href="https://s3-us-west-2.amazonaws.com//ai2-vision-animation-gan/annotation_data/interface_elems/instructions_stage_1/example_none.gif">
-  and no characters.
+  and empty frame.
 </a>
+<br>
 </p>
 <br>
 <div id="bbox_annotator" style="display:inline-block"></div>
@@ -52,7 +70,7 @@ Here are three examples of the task:
 
     <br>
     <!-- <input id="reset_button" type="reset" /> -->
-    <input id="other_character" type="button" value="Label Other Characters"/>
+    <input id="other_character" type="button" value="Do step 2"/>
     <form id='results-form' method='post' action='dummy' class='text-center'>
       <input type='hidden' value='' name='assignmentId' id='assignmentId'/>
       <input type='hidden' value='' name='output' id='output'/>
@@ -62,8 +80,8 @@ Here are three examples of the task:
   </div>
 </div>
 <h3> These are the main characters: </h3>
-<img src="https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/interface_elems/mc_row1.png">
-<img src="https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/interface_elems/mc_row2.png">
+<img id="mains_1" src="https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/interface_elems/mc_row1.png">
+<img id="mains_2" src="https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/interface_elems/mc_row2.png">
 
 
 <script>
@@ -118,12 +136,13 @@ function getParameterByName(name) {
 $(document).ready(function() {
   var inputMethod = getParameterByName("input");
   var assignment_id = turkGetParam('assignmentId', "");
-  var image_url =  "https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/still_frames/s_01_e_15_shot_031805_031879_70.png";
-  var image_id = "s_01_e_15_shot_031805_031879_70.png";
+  var image_url =  "https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/still_frames/s_04_e_08_shot_021175_021249_10.png";
+  var image_id = "s_04_e_08_shot_021175_021249_10.png";
   // var image_url =  "example.jpg";
   // Initialize the bounding-box annotator.
   var annotator = new BBoxAnnotator({
     url: image_url,
+    frame: 'image_frame_1',
     input_method: inputMethod || "select",
     // input_method: "select",
     labels: ["Fred",
@@ -136,7 +155,7 @@ $(document).ready(function() {
               "Mr Slate",
               "Baby Puss",
               "Hoppy",
-              "NO CHARACTERS"
+              "Empty Frame"
               ],
     onchange: function(entries) {
       if (entries.length > 0 &&
@@ -158,40 +177,44 @@ $(document).ready(function() {
     annotator.clear_all();
   })
   $("#other_character").click(function(e) {
+    document.getElementById("mains_1").style.display = 'none';
+    document.getElementById("mains_2").style.display = 'none';
+    document.getElementById("image_frame_1").style.display = 'none';
+    $("#other_character").attr("disabled", "disabled");
+    $("#other_character").attr("value", "Now on Step 2");
     var new_annotator = new BBoxAnnotator({
       url: image_url,
       input_method: "text",
-      // input_method: "select",
-      labels: ["Fred", "Barney", "Wilma"],
+      frame: 'image_frame_2',
       onchange: function(entries) {
+        if (entries.length > 0 &&
+            assignment_id != "" &&
+            assignment_id != "ASSIGNMENT_ID_NOT_AVAILABLE") {
+            $('#submit-btn').prop('disabled', false);
+        }
+        else {
+          $("#submitButton").attr("disabled", "disabled");
+
+        }
         // Input the text area on change. Use "hidden" input tag unless debugging.
         // <input id="annotation_data" name="annotation_data" type="hidden" />
         $("#annotation_data_others").val(JSON.stringify(entries))
       }
     });
+    for (i = 0; i < annotator.entries.length; i++) {
+      new_annotator.add_entry(annotator.entries[i]);
+    }
   })
+
   $("#submitButton").attr("disabled", "disabled");
-  // $('#submit-btn').prop('disabled', false);
   simpleamt.setupSubmit();
   $('#submit-btn').click(function() {
     try {
-      var main_annotations = JSON.parse($('#annotation_data_mains').val());
+      var combined_annotations = JSON.parse($('#annotation_data_others').val());
     }
       catch(e) {
-        var main_annotations = JSON.parse("[]");
+        var combined_annotations = JSON.parse($('#annotation_data_mains').val());
     }
-    try {
-      var other_annotations = JSON.parse($('#annotation_data_others').val());
-    }
-      catch(e) {
-        var other_annotations = JSON.parse("[]");
-    }
-    combined_annotations = main_annotations.concat(other_annotations);
-    // if (_.any(descriptions, function(d) { return d.length < 0; })) {
-    //   alert('Descriptions not long enough. Correct before submitting.');
-    //   return false;
-    // }
-
     simpleamt.setOutput({'stillID': image_id, 'characterBoxes': JSON.stringify(combined_annotations)});
   });
 

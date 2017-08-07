@@ -4,6 +4,7 @@ from boto.mturk.connection import MTurkConnection
 from boto.mturk.price import Price
 from boto.mturk.question import HTMLQuestion, ExternalQuestion
 import pickle
+import numpy as np
 
 SANDBOX_HOST = "mechanicalturk.sandbox.amazonaws.com"
 PROD_HOST = HOST = 'mechanicalturk.amazonaws.com'
@@ -18,6 +19,22 @@ def unpickle_this(file_name):
     with open(file_name, 'rb') as f:
         results_df = pickle.load(f)
     return results_df
+
+
+def expected_cost(hit_group, static_params, amt_con=None):
+    import warnings
+
+    def custom_formatwarning(msg, *a):
+        return str(msg) + '\n'
+
+    cost = len(hit_group) * static_params['amount'] * static_params['max_assignments']
+
+    warnings.formatwarning = custom_formatwarning
+    if amt_con:
+        account_balance = amt_con.get_account_balance().amount
+        if account_balance < cost:
+            warnings.warn('Insufficient Funds')
+    return round(cost, 2)
 
 
 def annotation_filter(annotations, hit):

@@ -27,18 +27,19 @@ def un_pickle_this(file_name):
     return results_df
 
 
-def generate_task_page(s3_base_path, img_id, template_file='character_bbox.html'):
-
-    env = Environment(loader=FileSystemLoader('hit_templates'))
-    template = env.get_template(template_file)
+def write_task_page(page_html):
     html_dir = './html_renders'
     html_out_file = os.path.join(html_dir, 'char_bbox.html')
-
     if not os.path.exists(html_dir):
         os.makedirs(html_dir)
-    page_html = template.render(s3_uri_base=s3_base_path, image_id=img_id)
     with open(html_out_file, 'w') as f:
         f.write(page_html.encode('ascii', 'ignore').decode('utf-8'))
+
+
+def generate_task_page(s3_base_path, img_id, template_file='character_bbox.html'):
+    env = Environment(loader=FileSystemLoader('hit_templates'))
+    template = env.get_template(template_file)
+    page_html = template.render(s3_uri_base=s3_base_path, image_id=img_id)
     return page_html
 
 
@@ -84,7 +85,7 @@ def get_completed_hits(mturk_connection):
     return reviewable_hits
 
 
-def get_assignments(mturk_connection, reviewable_hits, status=None):
+def get_assignment(mturk_connection, reviewable_hits, status=None):
     """
     Retrieves individual assignments associated with the specified HITs.
     :param mturk_connection: active mturk connection established by user in the nb.

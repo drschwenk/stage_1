@@ -15,6 +15,15 @@ def box_area(box):
     return height * width
 
 
+def box_area_ratio(box1, box2):
+    return box_area(box2.reshape(2, 2)) / box_area(box1.reshape(2, 2))
+
+
+def box_aspect_ratio(box):
+    box = box.reshape(2, 2)
+    return (box[1][1] - box[0][1]) / (box[1][0] - box[0][0])
+
+
 def compute_intersection(b1, b2):
     dx = min(b1[1][0], b2[1][0]) - max(b1[0][0], b2[0][0])
     dy = min(b1[1][1], b2[1][1]) - max(b1[0][1], b2[0][1])
@@ -53,11 +62,9 @@ def is_duplicate(k, boxes, thresh):
     for i, b2 in enumerate(boxes):
         if i <= k:
             continue
-
         iou = comp_boxes_iou(b1['box'], b2['box'])
         if iou > thresh:
             return True
-
     return False
 
 
@@ -74,7 +81,66 @@ def assign_boxes(selected_boxes, duplicate_boxes):
         b1['duplicate_of'] = assign_idx
 
 
-def nms(charBoxes, thresh=0.7):
+def assign_boxes_new(selected_boxes, duplicate_boxes, area_ratio_thresh=1.5):
+    altered_selections = {}
+    altered_duplicates = {}
+    locked = False
+    for b1 in duplicate_boxes:
+        assign_idx = -1
+        assign_iou = -1
+        for i, b2 in enumerate(selected_boxes):
+            iou = comp_boxes_iou(b1['box'], b2['box'])
+            if iou > assign_iou:
+                assign_iou = iou
+                assign_idx = b2['idx']
+        a_box = [box for box in selected_boxes if box['idx'] == assign_idx][0]
+        assigned_box = deepcopy(a_box)
+        print(assigned_box, b1, box_area_ratio(assigned_box['box'], b1['box']))
+        print('comp', area_ratio_thresh * (box_aspect_ratio(assigned_box['box']) * 1))
+        if box_area_ratio(assigned_box['box'], b1['box']) > area_ratio_thresh * (box_aspect_ratio(assigned_box['box']) * 1) and not locked:
+            altered_selections[b1['idx']] = b1
+            assigned_box['duplicate_of'] = b1['idx']
+            altered_duplicates[assigned_box['idx']] = assigned_box
+            locked = True
+        else:
+            altered_selections[assigned_box['idx']] = assigned_box
+            b1['duplicate_of'] = assign_idx
+            altered_duplicates[b1['idx']] = b1
+    return list(altered_selections.values()), list(altered_duplicates.values())
+
+
+def print_boxes(selected_boxes, duplicate_boxes):
+    print('-' * 10)
+    print('Selected Boxes')
+    print('-' * 10)
+    [print(b) for b in selected_boxes]
+
+    print('-' * 10)
+    print('Duplicate Boxes')
+    print('-' * 10)
+    [print(b) for b in duplicate_boxes]
+
+
+def filter_keep_by_area_fraction(boxes, keeps, thresh):
+    for i, b1 in enumerate(boxes):
+        for j in range(i + 1, len(boxes)):
+            b2 = boxes[j]
+            if comp_boxes_iou(b1['box'], b2['box']) > thresh:
+                # print(b1, b2, box_area_ratio(b2['box'], b1['box']), 1.1 * box_aspect_ratio(b1['box']))
+                # print(box_aspect_ratio(b2['box']), box_aspect_ratio(b1['box']))
+                # print(b1, b2, box_aspect_ratio(b2['box']))
+                # print(box_area_ratio(b2['box'], b1['box']),
+                #       1.8 * (box_aspect_ratio(b2['box']) / box_aspect_ratio(b1['box']))**2 )
+                # print((box_aspect_ratio(b2['box']) / box_aspect_ratio(b1['box']))**2)
+                # print(b1, b2, box_area_ratio(b2['box'], b1['box']))
+                if box_area_ratio(b2['box'], b1['box']) > 2.0 * (box_aspect_ratio(b2['box']) / box_aspect_ratio(b1['box']))**2 and keeps[i] != keeps[j]:
+
+                    keeps[i] = not keeps[i]
+                    keeps[j] = not keeps[j]
+                break
+
+
+def nms(charBoxes, thresh):
     boxes = [None] * len(charBoxes)
     for i, charBox in enumerate(charBoxes):
         box = characterbox_to_box(charBox)
@@ -91,12 +157,12 @@ def nms(charBoxes, thresh=0.7):
     keep = [None] * len(boxes)
     for i, box in enumerate(boxes):
         keep[i] = not is_duplicate(i, boxes, thresh)
-
-    selected_boxes = [boxes[i] for i in range(len(boxes)) if keep[i] == True]
-    duplicate_boxes = [boxes[i] for i in range(len(boxes)) if keep[i] == False]
-
+    # print(keep)
+    filter_keep_by_area_fraction(boxes, keep, thresh)
+    # print(keep)
+    selected_boxes = [boxes[i] for i in range(len(boxes)) if keep[i]]
+    duplicate_boxes = [boxes[i] for i in range(len(boxes)) if not keep[i]]
     assign_boxes(selected_boxes, duplicate_boxes)
-
     for b1 in selected_boxes:
         idx = b1['idx']
         votes = 1
@@ -105,33 +171,12 @@ def nms(charBoxes, thresh=0.7):
                 votes += 1
 
         b1['votes'] = votes
-
-    # print('-' * 10)
-    # print('Selected Boxes')
-    # print('-' * 10)
-    # [print(b) for b in selected_boxes]
-    #
-    # print('-' * 10)
-    # print('Duplicate Boxes')
-    # print('-' * 10)
-    # [print(b) for b in duplicate_boxes]
+    # print_boxes(selected_boxes, duplicate_boxes)
+    # print()
     if not duplicate_boxes:
         duplicate_boxes = []
 
     return selected_boxes, duplicate_boxes, boxes
-
-
-def test_nms():
-    json_path = './sample_annotation.json'
-    with open(json_path, 'r') as file:
-        anno = json.load(file)
-
-    i=2
-    boxes = \
-        json.loads(anno[3*i]['characterBoxes']) + \
-        json.loads(anno[3*i+1]['characterBoxes']) + \
-        json.loads(anno[3*i+2]['characterBoxes'])
-    return nms(boxes,0.4)
 
 
 def pick_consensus(clustered_boxes):
@@ -174,7 +219,6 @@ def draw_clusters(img_path, clustered_boxes, direction='rows', image=np.array([]
     def random_color():
         import random
         return random.randint(0, 255), random.randint(0, 255), random.randint(0, 1)
-
     if not image.any():
         image = cv2.imread(img_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -244,11 +288,17 @@ def cluster_from_nms(annos, _, __):
     # flattened_rects = [item for sublist in rects_per_anno for item in sublist[0]]
     boxes = [json.loads(anno['characterBoxes']) for anno in annos]
     flattened_boxes = [item for sublist in boxes for item in sublist]
-    selected_boxes, dupe_boxes, all_boxes = nms(flattened_boxes, 0.6)
-    if not dupe_boxes:
-        filtered_boxes = selected_boxes
+    chars_present = [box['label'] for box in flattened_boxes]
+    most_common = st.stats.mode(chars_present)
+    if most_common[0][0] == 'empty_frame':
+        flattened_boxes = [box for box in flattened_boxes if box['label'] == 'empty frame']
     else:
-        filtered_boxes = [box for box in selected_boxes if box['votes'] > 1]
+        flattened_boxes = [box for box in flattened_boxes if box['label'] != 'empty frame']
+    selected_boxes, dupe_boxes, all_boxes = nms(flattened_boxes, 0.5)
+    # if not dupe_boxes:
+    #     filtered_boxes = selected_boxes
+    # else:
+    filtered_boxes = [box for box in selected_boxes if box['votes'] > 1]
     return filtered_boxes, dupe_boxes, all_boxes
 
 
@@ -264,8 +314,9 @@ def format_clusters(selected_boxes, dupe_boxes):
     return clusters
 
 
-def draw_image_and_labels(still_annos, clusterer, frame_number=1, n_turkers=3):
-    image_base_dir = '/Users/schwenk/wrk/animation_gan/build_dataset/Flintstone_Shots_Selected_Frames/'
+def draw_image_and_labels(still_annos, clusterer, frame_number=1, n_turkers=3, image_base_dir=None):
+    if not image_base_dir:
+        image_base_dir = '/Users/schwenk/wrk/animation_gan/build_dataset/Flintstone_Shots_Selected_Frames/'
     still_id = still_annos[0]['stillID']
     if clusterer.__name__ == 'cluster_from_annos':
         box_clusters = clusterer(still_annos, frame_number, n_turkers)
@@ -387,3 +438,21 @@ def cluster_from_annos_combined(annos, frame_number, n_turkers=3):
 def draw_animation_combined_clusters(anim_seq, n_turkers):
     img = draw_image_and_labels(anim_seq, cluster_from_annos_combined, n_turkers=n_turkers)
     return img
+
+
+def crop_character_box(img, char):
+    crop = img.crop(char['box'])
+    return crop
+
+
+def create_subtask_data(anim_seq, clusterer):
+    image_base_dir = '/Users/schwenk/wrk/animation_gan/build_dataset/Flintstone_Shots_Selected_Frames/'
+    # three_frames, consensus_boxes, all_boxes = draw_image_and_labels(anim_seq[3:6], clusterer, 1)
+    consensus_boxes, box_clusters, all_boxes = clusterer(anim_seq[3:6], 1, 3)
+    still_ids = [still_annos['stillID'] for still_annos in [anim_seq[3], anim_seq[0], anim_seq[-1]]]
+    img_paths = [os.path.join(image_base_dir, still_id) for still_id in still_ids]
+    imgs = [Image.open(img_path) for img_path in img_paths]
+    mid_image = imgs[0]
+    char_crops = [crop_character_box(mid_image, char) for char in consensus_boxes]
+    imgs_comb = np.hstack(imgs[1:])
+    return Image.fromarray(imgs_comb), char_crops

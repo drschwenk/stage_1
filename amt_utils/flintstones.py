@@ -33,7 +33,7 @@ def write_task_page(page_html):
     if not os.path.exists(html_dir):
         os.makedirs(html_dir)
     with open(html_out_file, 'w') as f:
-        f.write(page_html.encode('ascii', 'ignore').decode('utf-8'))
+        f.write(page_html)
 
 
 def generate_task_page(s3_base_path, img_id, template_file='character_bbox.html'):
@@ -41,6 +41,18 @@ def generate_task_page(s3_base_path, img_id, template_file='character_bbox.html'
     template = env.get_template(template_file)
     page_html = template.render(s3_uri_base=s3_base_path, image_id=img_id)
     return page_html
+
+
+def generate_simpler_task_page(s3_base_path, img_id, n_chars, template_file='character_bbox_simple.html'):
+    pages = []
+    for char_idx in range(n_chars):
+        env = Environment(loader=FileSystemLoader('hit_templates'))
+        template = env.get_template(template_file)
+        char_img = img_id.rsplit('_', 1)[0] + '_char_' + str(char_idx) + '_taskb.png'
+        page_html = template.render(s3_uri_base=s3_base_path, image_id=img_id, char_img=char_img)
+        page_html = page_html
+        pages.append(page_html)
+    return pages
 
 
 def filter_hits_by_date(hit_group, day_of_month, hour=None):
@@ -126,19 +138,14 @@ def build_hit_params(qhtml, static_params):
     return hit_params
 
 
-def prepare_hit(s3_base_path, img_uri, static_parameters):
-    question_html = generate_task_page(s3_base_path, img_uri)
-    return build_hit_params(question_html, static_params)
+def prepare_simpler_hit(s3_base_path, still_id, n_chars, static_parameters):
+    question_html = generate_simpler_task_page(s3_base_path, still_id, n_chars)
+    return [build_hit_params(qhtml, static_parameters) for qhtml in question_html]
 
-static_params = {
-    'title': "Annotate characters from an animation frame",
-    'description': "Draw bounding boxes and label characters appearing in a image",
-    'keywords': ['animation', 'image', 'bounding box', 'image annotation'],
-    'frame_height': 1000,
-    'amount': 0.05,
-    'duration': 3600 * 1,
-    'lifetime': 3600 * 24 * 2,
-    'max_assignments': 3,
-}
+
+def prepare_hit(s3_base_path, img_uri, static_parameters, task_generator=generate_task_page):
+    question_html = task_generator(s3_base_path, img_uri)
+    return build_hit_params(question_html, static_parameters)
+
 
 s3_base_path = 'https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/still_frames/'

@@ -55,7 +55,17 @@ def generate_simpler_task_page(s3_base_path, img_id, n_chars, template_file='cha
     return pages
 
 
-def filter_hits_by_date(hit_group, day_of_month, hour=None):
+def filter_hits_by_date(hit_group, start_date, end_date):
+    import pytz
+    import dateutil.parser as dt_parse
+    import datetime
+
+    start_datetime = datetime.datetime(*start_date).replace(tzinfo=pytz.UTC)
+    end_datetime = datetime.datetime(*end_date).replace(tzinfo=pytz.UTC)
+    return [hit for hit in hit_group if start_datetime < dt_parse.parse(hit.CreationTime) < end_datetime]
+
+
+def filter_hits_by_date_old(hit_group, day_of_month, hour=None):
     import dateutil.parser as dt_parse
 
     def check_day(hit, day_of_month):
@@ -97,7 +107,7 @@ def get_completed_hits(mturk_connection):
     return reviewable_hits
 
 
-def get_assignment(mturk_connection, reviewable_hits, status=None):
+def get_assignments(mturk_connection, reviewable_hits, status=None):
     """
     Retrieves individual assignments associated with the specified HITs.
     :param mturk_connection: active mturk connection established by user in the nb.
@@ -121,6 +131,7 @@ def build_hit_params(qhtml, static_params):
     """
     import copy
     import boto
+
     def build_qualifications():
         """
         Creates a single qualification that workers have a > 95% acceptance rate.

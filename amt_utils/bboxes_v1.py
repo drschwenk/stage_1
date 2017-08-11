@@ -81,6 +81,34 @@ def assign_boxes(selected_boxes, duplicate_boxes):
         b1['duplicate_of'] = assign_idx
 
 
+def assign_boxes_new(selected_boxes, duplicate_boxes, area_ratio_thresh=1.5):
+    altered_selections = {}
+    altered_duplicates = {}
+    locked = False
+    for b1 in duplicate_boxes:
+        assign_idx = -1
+        assign_iou = -1
+        for i, b2 in enumerate(selected_boxes):
+            iou = comp_boxes_iou(b1['box'], b2['box'])
+            if iou > assign_iou:
+                assign_iou = iou
+                assign_idx = b2['idx']
+        a_box = [box for box in selected_boxes if box['idx'] == assign_idx][0]
+        assigned_box = deepcopy(a_box)
+        print(assigned_box, b1, box_area_ratio(assigned_box['box'], b1['box']))
+        print('comp', area_ratio_thresh * (box_aspect_ratio(assigned_box['box']) * 1))
+        if box_area_ratio(assigned_box['box'], b1['box']) > area_ratio_thresh * (box_aspect_ratio(assigned_box['box']) * 1) and not locked:
+            altered_selections[b1['idx']] = b1
+            assigned_box['duplicate_of'] = b1['idx']
+            altered_duplicates[assigned_box['idx']] = assigned_box
+            locked = True
+        else:
+            altered_selections[assigned_box['idx']] = assigned_box
+            b1['duplicate_of'] = assign_idx
+            altered_duplicates[b1['idx']] = b1
+    return list(altered_selections.values()), list(altered_duplicates.values())
+
+
 def print_boxes(selected_boxes, duplicate_boxes):
     print('-' * 10)
     print('Selected Boxes')
@@ -153,6 +181,27 @@ def nms(charBoxes, thresh):
 
 def pick_consensus(clustered_boxes):
     return [sorted(cluster, key=lambda x: box_area(x))[:1] for cluster in clustered_boxes]
+
+
+def cluster_diagram_text_centers(text_rects, n_turkers_assigned=3, bracket=0):
+    text_centers = [comp_box_center(rect) for rect in text_rects]
+    remainder = len(text_centers) % n_turkers_assigned
+    if not remainder:
+        n_clusters = int(len(text_centers) / n_turkers_assigned)
+    else:
+        if bracket != 'lots':
+            bracket_n = int(bracket)
+        else:
+            bracket_n = 7
+        n_clusters = len(text_centers) // n_turkers_assigned + bracket
+    text_clusterer = KMeans(n_clusters)
+    box_array = np.array(text_centers)
+    if not box_array.size:
+        return []
+    cluster_assignments = text_clusterer.fit_predict(box_array)
+    clustered_boxes = [np.array(text_rects)[cluster_assignments == cluster_n].tolist() for cluster_n in
+                       range(n_clusters)]
+    return clustered_boxes
 
 
 def limit_rect(rect, max_x, max_y, border_pad=2):

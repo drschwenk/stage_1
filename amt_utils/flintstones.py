@@ -3,6 +3,8 @@ from collections import defaultdict
 from jinja2 import Environment, FileSystemLoader
 import os
 import json
+import PIL.Image as Image
+import requests
 
 
 from boto.mturk.qualification import PercentAssignmentsApprovedRequirement, Qualifications, Requirement
@@ -160,3 +162,8 @@ def prepare_hit(s3_base_path, img_uri, static_parameters, task_generator=generat
 
 
 s3_base_path = 'https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/still_frames/'
+
+
+def display_image(still_id):
+    image_url = s3_base_path + still_id
+    return Image.open(requests.get(image_url, stream=True).raw)

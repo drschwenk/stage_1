@@ -306,7 +306,7 @@ def find_matches(pairs):
     return matches
 
 
-def select_labels(consensus_boxes, all_boxes, iou_thresh):
+def select_labels_three_frame(consensus_boxes, all_boxes, iou_thresh):
     all_char_boxes = []
     for frame_n, frame_boxes in enumerate(all_boxes):
         boxes_per_char_this_frame = defaultdict(list)
@@ -348,6 +348,26 @@ def select_labels(consensus_boxes, all_boxes, iou_thresh):
     return chars_with_labels
 
 
+def select_labels(consensus_boxes, all_boxes):
+    all_char_boxes = defaultdict(list)
+    for con_box in consensus_boxes:
+        all_char_boxes[con_box['idx']].append(con_box)
+        for box in all_boxes:
+            if 'duplicate_of' in box and box['duplicate_of'] == con_box['idx']:
+                all_char_boxes[box['duplicate_of']].append(box)
+    all_labels = [[cb['label'] for cb in char if cb['label'] != 'empty frame'] for char in all_char_boxes.values()]
+    chars_with_labels = []
+    for idx, chars in enumerate(consensus_boxes):
+        chars['possible_labels'] = set(all_labels[idx])
+        likely_char = st.stats.mode(all_labels[idx])
+        if likely_char[1] > 1:
+            chars['chosen_labels'] = likely_char[0][0]
+        else:
+            chars['chosen_labels'] = sorted(list(chars['possible_labels']), key=lambda x: len(x), reverse=True)[0]
+        chars_with_labels.append(chars)
+    return chars_with_labels
+
+
 def draw_animation_seq(anim_seq, clusterer):
     single_still_annos = anim_seq[:3], anim_seq[3:6], anim_seq[6:]
     images_and_boxes = [draw_image_and_labels(single_still_annos[frame_n], clusterer, frame_n) for frame_n in range(3)]
@@ -357,12 +377,12 @@ def draw_animation_seq(anim_seq, clusterer):
     return Image.fromarray(imgs_comb), consensus_boxes, labels
 
 
-def cluster_from_annos_combined(annos, frame_number, n_turkers=3):
-    rects_per_anno = [get_frame_annos(anno) for anno in annos]
-    flattened_rects = [item for sublist in rects_per_anno for item in sublist[0]]
-    labels = [rect[1] for rect in rects_per_anno]
-    box_clusters = cluster_diagram_text_centers(flattened_rects, n_turkers)
-    return box_clusters
+# def cluster_from_annos_combined(annos, frame_number, n_turkers=3):
+#     rects_per_anno = [get_frame_annos(anno) for anno in annos]
+#     flattened_rects = [item for sublist in rects_per_anno for item in sublist[0]]
+#     labels = [rect[1] for rect in rects_per_anno]
+#     box_clusters = cluster_diagram_text_centers(flattened_rects, n_turkers)
+#     return box_clusters
 
 
 def draw_animation_combined_clusters(anim_seq, n_turkers):
@@ -386,6 +406,7 @@ def create_subtask_data_three_frames(anim_seq, clusterer):
     char_crops = [crop_character_box(mid_image, char) for char in consensus_boxes]
     imgs_comb = np.hstack(imgs[1:])
     return Image.fromarray(imgs_comb), char_crops
+
 
 def create_subtask_data(anim_seq, clusterer):
     image_base_dir = '/Users/schwenk/wrk/animation_gan/build_dataset/Flintstone_Shots_Selected_Frames/'

@@ -63,6 +63,10 @@ def is_duplicate(k, boxes, thresh):
         if i <= k:
             continue
         iou = comp_boxes_iou(b1['box'], b2['box'])
+
+        if b1['label'] == b2['label']:
+            return True
+
         if iou > thresh:
             return True
     return False
@@ -74,6 +78,10 @@ def assign_boxes(selected_boxes, duplicate_boxes):
         assign_iou = -1
         for i, b2 in enumerate(selected_boxes):
             iou = comp_boxes_iou(b1['box'], b2['box'])
+            if b1['label'] == b2['label']:
+                print(b1['label'], b2['label'])
+                assign_iou = iou
+                assign_idx = b2['idx']
             if iou > assign_iou:
                 assign_iou = iou
                 assign_idx = b2['idx']
@@ -105,8 +113,8 @@ def filter_keep_by_area_fraction(boxes, keeps, thresh):
                 #       1.8 * (box_aspect_ratio(b2['box']) / box_aspect_ratio(b1['box']))**2 )
                 # print((box_aspect_ratio(b2['box']) / box_aspect_ratio(b1['box']))**2)
                 # print(b1, b2, box_area_ratio(b2['box'], b1['box']))
-                if box_area_ratio(b2['box'], b1['box']) > 2.0 * (box_aspect_ratio(b2['box']) / box_aspect_ratio(b1['box']))**2 and keeps[i] != keeps[j]:
-
+                if box_area_ratio(b2['box'], b1['box']) > 2.0 * \
+                                (box_aspect_ratio(b2['box']) / box_aspect_ratio(b1['box']))**2 and keeps[i] != keeps[j]:
                     keeps[i] = not keeps[i]
                     keeps[j] = not keeps[j]
                 break
@@ -129,8 +137,7 @@ def nms(charBoxes, thresh):
     keep = [None] * len(boxes)
     for i, box in enumerate(boxes):
         keep[i] = not is_duplicate(i, boxes, thresh)
-    # print(keep)
-    filter_keep_by_area_fraction(boxes, keep, thresh)
+    filter_keep_by_area_fraction(boxes, keep, 0.1)
     # print(keep)
     selected_boxes = [boxes[i] for i in range(len(boxes)) if keep[i]]
     duplicate_boxes = [boxes[i] for i in range(len(boxes)) if not keep[i]]
@@ -143,8 +150,7 @@ def nms(charBoxes, thresh):
                 votes += 1
 
         b1['votes'] = votes
-    # print_boxes(selected_boxes, duplicate_boxes)
-    # print()
+    print_boxes(selected_boxes, duplicate_boxes)
     if not duplicate_boxes:
         duplicate_boxes = []
 
@@ -174,7 +180,6 @@ def draw_clusters(img_path, clustered_boxes, direction='rows', image=np.array([]
         image = cv2.imread(img_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     max_height, max_width, channels = image.shape
-
     for idx, cluster in enumerate(clustered_boxes):
         if len(cluster) > 1:
             color = random_color()
@@ -225,13 +230,13 @@ def print_labels(all_labels, frame_number):
     print()
 
 
-def cluster_from_annos(annos, frame_number, n_turkers=3):
-    rects_per_anno = [get_frame_annos(anno) for anno in annos]
-    flattened_rects = [item for sublist in rects_per_anno for item in sublist[0]]
-    labels = [rect[1] for rect in rects_per_anno]
-    print_labels(labels, frame_number)
-    box_clusters = cluster_diagram_text_centers(flattened_rects, n_turkers)
-    return box_clusters
+# def cluster_from_annos(annos, frame_number, n_turkers=3):
+#     rects_per_anno = [get_frame_annos(anno) for anno in annos]
+#     flattened_rects = [item for sublist in rects_per_anno for item in sublist[0]]
+#     labels = [rect[1] for rect in rects_per_anno]
+#     print_labels(labels, frame_number)
+#     box_clusters = cluster_diagram_text_centers(flattened_rects, n_turkers)
+#     return box_clusters
 
 
 def cluster_from_nms(annos, _, __):
@@ -239,6 +244,7 @@ def cluster_from_nms(annos, _, __):
     # flattened_rects = [item for sublist in rects_per_anno for item in sublist[0]]
     boxes = [json.loads(anno['characterBoxes']) for anno in annos]
     flattened_boxes = [item for sublist in boxes for item in sublist]
+    flattened_boxes = [box for box in flattened_boxes if box_area(rect_from_anno(box)) > 100]
     chars_present = [box['label'] for box in flattened_boxes]
     most_common = st.stats.mode(chars_present)
     if most_common[0][0] == 'empty_frame':

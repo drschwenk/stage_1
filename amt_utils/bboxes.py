@@ -63,10 +63,6 @@ def is_duplicate(k, boxes, thresh):
         if i <= k:
             continue
         iou = comp_boxes_iou(b1['box'], b2['box'])
-
-        if b1['label'] == b2['label']:
-            return True
-
         if iou > thresh:
             return True
     return False
@@ -78,10 +74,6 @@ def assign_boxes(selected_boxes, duplicate_boxes):
         assign_iou = -1
         for i, b2 in enumerate(selected_boxes):
             iou = comp_boxes_iou(b1['box'], b2['box'])
-            if b1['label'] == b2['label']:
-                print(b1['label'], b2['label'])
-                assign_iou = iou
-                assign_idx = b2['idx']
             if iou > assign_iou:
                 assign_iou = iou
                 assign_idx = b2['idx']
@@ -113,8 +105,8 @@ def filter_keep_by_area_fraction(boxes, keeps, thresh):
                 #       1.8 * (box_aspect_ratio(b2['box']) / box_aspect_ratio(b1['box']))**2 )
                 # print((box_aspect_ratio(b2['box']) / box_aspect_ratio(b1['box']))**2)
                 # print(b1, b2, box_area_ratio(b2['box'], b1['box']))
-                if box_area_ratio(b2['box'], b1['box']) > 2.0 * \
-                                (box_aspect_ratio(b2['box']) / box_aspect_ratio(b1['box']))**2 and keeps[i] != keeps[j]:
+                if box_area_ratio(b2['box'], b1['box']) > 2.0 * (box_aspect_ratio(b2['box']) / box_aspect_ratio(b1['box']))**2 and keeps[i] != keeps[j]:
+
                     keeps[i] = not keeps[i]
                     keeps[j] = not keeps[j]
                 break
@@ -137,7 +129,8 @@ def nms(charBoxes, thresh):
     keep = [None] * len(boxes)
     for i, box in enumerate(boxes):
         keep[i] = not is_duplicate(i, boxes, thresh)
-    filter_keep_by_area_fraction(boxes, keep, 0.1)
+    # print(keep)
+    filter_keep_by_area_fraction(boxes, keep, thresh)
     # print(keep)
     selected_boxes = [boxes[i] for i in range(len(boxes)) if keep[i]]
     duplicate_boxes = [boxes[i] for i in range(len(boxes)) if not keep[i]]
@@ -150,7 +143,8 @@ def nms(charBoxes, thresh):
                 votes += 1
 
         b1['votes'] = votes
-    print_boxes(selected_boxes, duplicate_boxes)
+    # print_boxes(selected_boxes, duplicate_boxes)
+    # print()
     if not duplicate_boxes:
         duplicate_boxes = []
 
@@ -180,6 +174,7 @@ def draw_clusters(img_path, clustered_boxes, direction='rows', image=np.array([]
         image = cv2.imread(img_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     max_height, max_width, channels = image.shape
+
     for idx, cluster in enumerate(clustered_boxes):
         if len(cluster) > 1:
             color = random_color()
@@ -230,13 +225,13 @@ def print_labels(all_labels, frame_number):
     print()
 
 
-# def cluster_from_annos(annos, frame_number, n_turkers=3):
-#     rects_per_anno = [get_frame_annos(anno) for anno in annos]
-#     flattened_rects = [item for sublist in rects_per_anno for item in sublist[0]]
-#     labels = [rect[1] for rect in rects_per_anno]
-#     print_labels(labels, frame_number)
-#     box_clusters = cluster_diagram_text_centers(flattened_rects, n_turkers)
-#     return box_clusters
+def cluster_from_annos(annos, frame_number, n_turkers=3):
+    rects_per_anno = [get_frame_annos(anno) for anno in annos]
+    flattened_rects = [item for sublist in rects_per_anno for item in sublist[0]]
+    labels = [rect[1] for rect in rects_per_anno]
+    print_labels(labels, frame_number)
+    box_clusters = cluster_diagram_text_centers(flattened_rects, n_turkers)
+    return box_clusters
 
 
 def cluster_from_nms(annos, _, __):
@@ -296,6 +291,24 @@ def draw_image_and_labels(still_annos, clusterer, frame_number=1, n_turkers=3, i
         img_a = draw_clusters(os.path.join(image_base_dir, still_id), box_clusters, image=base_image)
         img_a = draw_clusters(os.path.join(image_base_dir, still_id), consensus_formatted, image=img_a)
     return Image.fromarray(img_a), consensus_boxes, all_boxes
+
+
+def cluster_and_label(still_annos, clusterer, frame_number=1, n_turkers=3, image_base_dir=None):
+    consensus_boxes, box_clusters, all_boxes = clusterer(still_annos, frame_number, n_turkers)
+    if set([box['label'] for box in consensus_boxes]) == set(['empty frame']):
+        consensus_boxes = []
+    return consensus_boxes, all_boxes
+
+
+def select_subtask_box(still_annos, n_turkers=3):
+    # box_aspect_ratio(b2['box']) / box_aspect_ratio(b1['box']))
+
+    # for
+
+    boxes = sorted(boxes, key=lambda x: x['area'], reverse=True)  # largest area first
+
+    consensus_boxes = 0
+    return consensus_boxes
 
 
 def find_matches(pairs):

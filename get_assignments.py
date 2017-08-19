@@ -7,6 +7,7 @@ from keysTkingdom import mturk_ai2
 from keysTkingdom import aws_tokes
 from keysTkingdom import mturk_aristo
 from amt_utils.mturk import MTurk
+from amt_utils.flintstones import get_assignments
 
 
 procs = 8
@@ -45,12 +46,11 @@ def multimap(method, iterable, *args):
 
 
 def get_hit_chunk(hit):
-    return amt_con.connection.get_hit(hit.HITId)
-
+    return amt_con.connection.get_assignments(hit.HITId)
 
 if __name__ == '__main__':
 
-    latest_hits = unpickle_this('rev_hits_8_15.pkl')
-    all_hits = multimap(get_hit_chunk, latest_hits[20000:])
+    latest_hits = unpickle_this('rev_hits_8_18.pkl')
+    all_assignments = multimap(get_hit_chunk, latest_hits)
     # flattened_hits = [hit for sublist in all_hits for hit in sublist]
-    pickle_this(all_hits, 'latest_hit_group.pkl')
+    pickle_this(all_assignments, 'latest_result_group_8_18.pkl')

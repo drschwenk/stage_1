@@ -161,6 +161,43 @@ def prepare_hit(s3_base_path, img_uri, static_parameters, task_generator=generat
     return build_hit_params(question_html, static_parameters)
 
 
+def generate_stage_2_task_page(s3_base_paths, vid_anno, poses, position_prepositions, template_file='stage_2a.html'):
+    pages = []
+    for char in vid_anno['characters']:
+        env = Environment(loader=FileSystemLoader('hit_templates'))
+        template = env.get_template(template_file)
+        image_url = s3_base_paths['stills'] + vid_anno['keyFrames'][0].replace('_40.png', '_10.png')
+        char_url = s3_base_paths['subtask'] + char['imageID']
+        page_html = template.render(s3_uri_base=s3_base_path, image_url=image_url, char_img=char_url, pose_select=poses,
+                                    position_select=position_prepositions)
+        page_html = page_html
+        pages.append(page_html)
+    return pages
+
+
+def generate_stage_2b_task_page(s3_base_paths, vid_anno, template_file='stage_2b.html'):
+    pages = []
+    for char in vid_anno['characters']:
+        env = Environment(loader=FileSystemLoader('hit_templates'))
+        template = env.get_template(template_file)
+        image_url = s3_base_paths['gifs'] + vid_anno['globalID'] + '.gif'
+        char_url = s3_base_paths['subtask'] + char['imageID']
+        page_html = template.render(s3_uri_base=s3_base_path, image_url=image_url, char_img=char_url)
+        page_html = page_html
+        pages.append(page_html)
+    return pages
+
+
+def prepare_stage_2_hit(s3_base_path, img_uri, poses, position_prepositions, static_parameters, task_generator=generate_stage_2_task_page):
+    question_html = task_generator(s3_base_path, img_uri, poses, position_prepositions)
+    return [build_hit_params(qhtml, static_parameters) for qhtml in question_html]
+
+
+def prepare_stage_2b_hit(s3_base_path, img_uri, static_parameters, task_generator=generate_stage_2b_task_page):
+    question_html = task_generator(s3_base_path, img_uri)
+    return [build_hit_params(qhtml, static_parameters) for qhtml in question_html]
+
+
 s3_base_path = 'https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/still_frames/'
 
 

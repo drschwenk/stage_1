@@ -50,7 +50,7 @@ def get_hit_chunk(hit):
 
 if __name__ == '__main__':
 
-    latest_hits = unpickle_this('rev_hits_8_18.pkl')
+    latest_hits = unpickle_this('latest_hit_group.pkl')
     all_hits = multimap(get_hit_chunk, latest_hits)
     # flattened_hits = [hit for sublist in all_hits for hit in sublist]
-    pickle_this(all_hits, 'latest_hit_group.pkl')
+    pickle_this(all_hits, 'latest_hit_group_8_19.pkl')

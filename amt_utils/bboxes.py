@@ -290,7 +290,7 @@ def draw_image_and_labels(still_annos, clusterer, frame_number=1, n_turkers=3, i
     else:
         img_a = draw_clusters(os.path.join(image_base_dir, still_id), box_clusters, image=base_image)
         img_a = draw_clusters(os.path.join(image_base_dir, still_id), consensus_formatted, image=img_a)
-    return Image.fromarray(img_a), consensus_boxes, all_boxes
+    return img_a, consensus_boxes, all_boxes
 
 
 def cluster_and_label(still_annos, clusterer, frame_number=1, n_turkers=3, image_base_dir=None):

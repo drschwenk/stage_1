@@ -7,7 +7,7 @@ import PIL.Image as Image
 import requests
 
 
-from boto.mturk.qualification import PercentAssignmentsApprovedRequirement, Qualifications, Requirement
+from boto.mturk.qualification import PercentAssignmentsApprovedRequirement, Qualifications, Requirement, LocaleRequirement
 
 
 def create_result(assmt):
@@ -134,18 +134,24 @@ def build_hit_params(qhtml, static_params):
     import copy
     import boto
 
-    def build_qualifications():
+    def build_qualifications(locales=None):
         """
         Creates a single qualification that workers have a > 95% acceptance rate.
         :return: boto qualification obj.
         """
         qualifications = Qualifications()
-        req1 = PercentAssignmentsApprovedRequirement(comparator="GreaterThan", integer_value="95")
-        qualifications.add(req1)
+        requirements = [PercentAssignmentsApprovedRequirement(comparator="GreaterThan", integer_value="95")]
+        if locales:
+            loc_req = LocaleRequirement(
+                    comparator='In',
+                    locale=locales)
+            requirements.append(loc_req)
+        _ = [qualifications.add(req) for req in requirements]
         return qualifications
-
+    if 'locales' not in static_params:
+        static_params['locales'] = None
     hit_params = copy.deepcopy(static_params)
-    hit_params['qualifications'] = build_qualifications()
+    hit_params['qualifications'] = build_qualifications(static_params['locales'])
     hit_params['reward'] = boto.mturk.price.Price(hit_params['amount'])
     hit_params['html'] = qhtml
     return hit_params
@@ -188,14 +194,36 @@ def generate_stage_2b_task_page(s3_base_paths, vid_anno, template_file='stage_2b
     return pages
 
 
-def generate_stage_3_task_page(s3_base_paths, vid_anno, template_file='stage_3.html'):
+def generate_stage_3b_task_page(s3_base_paths, vid_anno, template_file='stage_3b.html'):
+    env = Environment(loader=FileSystemLoader('hit_templates'))
+    template = env.get_template(template_file)
+    vid_setting = vid_anno['setting']
+    image_url = s3_base_paths['gifs'] + vid_anno['globalID'] + '.gif'
+    char_tuples = []
+    strings_to_match = []
+    for char in vid_anno['characters']:
+        char_name = char['characterName']
+        strings_to_match.append(char_name)
+        char_url = s3_base_paths['subtask'] + char['imageID']
+        char_tuples.append((char_url, char_name))
+    strings_to_match.append(vid_setting)
+    strings_to_match = 'string_join_token'.join(strings_to_match)
+    page_html = template.render(s3_uri_base=s3_base_path, image_url=image_url, char_images=char_tuples,
+                                setting=vid_setting, strings_to_match=strings_to_match)
+    return page_html
+
+
+def generate_stage_3_task_page(s3_base_paths, vid_anno, template_file='stage_3a.html'):
+
     for char in vid_anno['characters']:
         env = Environment(loader=FileSystemLoader('hit_templates'))
         char_name = char['characterName']
         template = env.get_template(template_file)
         image_url = s3_base_paths['gifs'] + vid_anno['globalID'] + '.gif'
         char_url = s3_base_paths['subtask'] + char['imageID']
-        page_html = template.render(s3_uri_base=s3_base_path, image_url=image_url, char_img=char_url, char_name=char_name)
+
+        page_html = template.render(s3_uri_base=s3_base_path, image_url=image_url, char_img=char_url,
+                                    char_name=char_name)
         page_html = page_html
         return page_html
 
@@ -213,6 +241,12 @@ def prepare_stage_2b_hit(s3_base_path, img_uri, static_parameters, task_generato
 def prepare_stage_3_hit(s3_base_path, img_uri, static_parameters, task_generator=generate_stage_3_task_page):
     question_html = task_generator(s3_base_path, img_uri)
     return build_hit_params(question_html, static_parameters)
+
+
+def prepare_stage_3b_hit(s3_base_path, img_uri, static_parameters, task_generator=generate_stage_3b_task_page):
+    question_html = task_generator(s3_base_path, img_uri)
+    return build_hit_params(question_html, static_parameters)
+
 
 s3_base_path = 'https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/still_frames/'
 

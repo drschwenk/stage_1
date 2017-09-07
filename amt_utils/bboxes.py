@@ -254,6 +254,26 @@ def cluster_from_nms(annos, _, __):
     return filtered_boxes, dupe_boxes, all_boxes
 
 
+def cluster_from_nms_stage1_b(annos, _, __):
+    # rects_per_anno = [get_frame_annos(anno) for anno in annos]
+    # flattened_rects = [item for sublist in rects_per_anno for item in sublist[0]]
+    boxes = annos
+    flattened_boxes = [item for sublist in boxes for item in sublist]
+    flattened_boxes = [box for box in flattened_boxes if box_area(rect_from_anno(box)) > 100]
+    chars_present = [box['label'] for box in flattened_boxes]
+    most_common = st.stats.mode(chars_present)
+    if most_common[0][0] == 'empty_frame':
+        flattened_boxes = [box for box in flattened_boxes if box['label'] == 'empty frame']
+    else:
+        flattened_boxes = [box for box in flattened_boxes if box['label'] != 'empty frame']
+    selected_boxes, dupe_boxes, all_boxes = nms(flattened_boxes, 0.5)
+    # if not dupe_boxes:
+    #     filtered_boxes = selected_boxes
+    # else:
+    filtered_boxes = [box for box in selected_boxes if box['votes'] > 1]
+    return filtered_boxes, dupe_boxes, all_boxes
+
+
 def convert_nms_boxes(boxes):
     return [box['box'].tolist() for box in boxes]
 
@@ -294,9 +314,29 @@ def draw_image_and_labels(still_annos, clusterer, frame_number=1, n_turkers=3, i
 
 
 def cluster_and_label(still_annos, clusterer, frame_number=1, n_turkers=3, image_base_dir=None):
+
     consensus_boxes, box_clusters, all_boxes = clusterer(still_annos, frame_number, n_turkers)
     if set([box['label'] for box in consensus_boxes]) == set(['empty frame']):
         consensus_boxes = []
+    return consensus_boxes, all_boxes
+
+
+def group_char_boxes(still_annos):
+    char_boxes = defaultdict(list)
+    for cb in still_annos:
+        worker_anno = json.loads(cb['characterBoxes'])
+        if worker_anno:
+            cid = worker_anno[0]['label']
+            char_boxes[cid].append(worker_anno)
+    return char_boxes
+
+
+def cluster_and_label_stage_1b(still_annos, clusterer, frame_number=1, n_turkers=3, image_base_dir=None):
+    boxes_by_char = group_char_boxes(still_annos)
+    consensus_boxes = []
+    for cid, char_annos in boxes_by_char.items():
+        char_consensus_boxes, char_box_clusters, all_boxes = clusterer(char_annos, frame_number, n_turkers)
+        consensus_boxes.extend(char_consensus_boxes)
     return consensus_boxes, all_boxes
 
 

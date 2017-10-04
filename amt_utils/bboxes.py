@@ -467,6 +467,19 @@ def create_subtask_data_three_frames(anim_seq, clusterer):
     return Image.fromarray(imgs_comb), char_crops
 
 
+def create_task_data_three_frames(anim_seq, clusterer):
+    image_base_dir = '/Users/schwenk/wrk/animation_gan/build_dataset/Flintstone_Shots_Selected_Frames/'
+    # three_frames, consensus_boxes, all_boxes = draw_image_and_labels(anim_seq[3:6], clusterer, 1)
+    consensus_boxes, box_clusters, all_boxes = clusterer(anim_seq[3:6], 1, 3)
+    still_ids = [still_annos['stillID'] for still_annos in [anim_seq[3], anim_seq[0], anim_seq[-1]]]
+    img_paths = [os.path.join(image_base_dir, still_id) for still_id in still_ids]
+    imgs = [Image.open(img_path) for img_path in img_paths]
+    mid_image = imgs[0]
+    char_crops = [crop_character_box(mid_image, char) for char in consensus_boxes]
+    imgs_comb = np.hstack(imgs[1:])
+    return Image.fromarray(imgs_comb), char_crops
+
+
 def create_subtask_data(anim_seq, clusterer):
     image_base_dir = '/Users/schwenk/wrk/animation_gan/build_dataset/Flintstone_Shots_Selected_Frames/'
     # three_frames, consensus_boxes, all_boxes = draw_image_and_labels(anim_seq[3:6], clusterer, 1)
@@ -477,5 +490,19 @@ def create_subtask_data(anim_seq, clusterer):
     imgs = [Image.open(img_path) for img_path in img_paths]
     mid_image = imgs[0]
     char_crops = [crop_character_box(mid_image, char) for char in consensus_boxes]
+    imgs_comb = np.hstack(imgs[1:])
+    return Image.fromarray(imgs_comb), char_crops
+
+
+def create_new_subtask_data(anim_seq, new_char):
+    image_base_dir = '/Users/schwenk/wrk/animation_gan/build_dataset/Flintstone_Shots_Selected_Frames/'
+    # three_frames, consensus_boxes, all_boxes = draw_image_and_labels(anim_seq[3:6], clusterer, 1)
+    # consensus_boxes, box_clusters, all_boxes = clusterer(anim_seq, 1, 3)
+    still_mid_id = anim_seq[0]['stillID']
+    still_ids = [still_mid_id, still_mid_id.replace('_40', '_10'), still_mid_id.replace('_40','_70')]
+    img_paths = [os.path.join(image_base_dir, still_id) for still_id in still_ids]
+    imgs = [Image.open(img_path) for img_path in img_paths]
+    mid_image = imgs[0]
+    char_crops = crop_character_box(mid_image, new_char)
     imgs_comb = np.hstack(imgs[1:])
     return Image.fromarray(imgs_comb), char_crops

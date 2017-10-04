@@ -3,6 +3,7 @@ from collections import defaultdict
 from jinja2 import Environment, FileSystemLoader
 import os
 import json
+from nltk.tokenize import sent_tokenize
 import PIL.Image as Image
 import requests
 
@@ -55,6 +56,43 @@ def generate_simpler_task_page(s3_base_path, img_id, n_chars, template_file='cha
         page_html = page_html
         pages.append(page_html)
     return pages
+
+
+def generate_stage_4a_task_page(img_id, formatted_description, template_file='stage_4a.html'):
+    env = Environment(loader=FileSystemLoader('hit_templates'))
+    template = env.get_template(template_file)
+    page_html = template.render(image_id=img_id, formatted_description=formatted_description)
+    page_html = page_html
+    return page_html
+
+
+def generate_stage_4b_task_page(img_id, formatted_description, target, template_file='stage_4b.html'):
+    env = Environment(loader=FileSystemLoader('hit_templates'))
+    template = env.get_template(template_file)
+    page_html = template.render(s3_uri_base=s3_subtask_path, image_id=img_id, description=formatted_description, target_object=target)
+    return page_html
+
+
+def generate_stage_4_task_page(s3_base_path, img_id, n_chars, template_file='stage_4.html'):
+    pages = []
+    for char_idx in range(n_chars):
+        env = Environment(loader=FileSystemLoader('hit_templates'))
+        template = env.get_template(template_file)
+        char_img = img_id.rsplit('_', 1)[0] + '_char_' + str(char_idx) + '_taskb.png'
+        page_html = template.render(s3_uri_base=s3_base_path, image_id=img_id, char_img=char_img)
+        page_html = page_html
+        pages.append(page_html)
+    return pages
+
+
+def generate_simpler_supl_task_page(s3_base_path, img_id, char_id, template_file='character_bbox_simple.html'):
+    env = Environment(loader=FileSystemLoader('hit_templates'))
+    template = env.get_template(template_file)
+    char_img = char_id + '.png'
+    img_id = img_id + '_taskb.png'
+    page_html = template.render(s3_uri_base=s3_base_path, image_id=img_id, char_img=char_img)
+    page_html = page_html
+    return page_html
 
 
 def filter_hits_by_date(hit_group, start_date, end_date):
@@ -162,6 +200,11 @@ def prepare_simpler_hit(s3_base_path, still_id, n_chars, static_parameters):
     return [build_hit_params(qhtml, static_parameters) for qhtml in question_html]
 
 
+def prepare_simpler_supl_hit(s3_base_path, still_id, char_id, static_parameters):
+    question_html = generate_simpler_supl_task_page(s3_base_path, still_id, char_id)
+    return build_hit_params(question_html, static_parameters)
+
+
 def prepare_hit(s3_base_path, img_uri, static_parameters, task_generator=generate_task_page):
     question_html = task_generator(s3_base_path, img_uri)
     return build_hit_params(question_html, static_parameters)
@@ -248,7 +291,45 @@ def prepare_stage_3b_hit(s3_base_path, img_uri, static_parameters, task_generato
     return build_hit_params(question_html, static_parameters)
 
 
+def prepare_stage_4_hit(s3_base_path, still_id, n_objs, static_parameters):
+    question_html = generate_stage_4_task_page(s3_base_path, still_id, n_objs)
+    return [build_hit_params(qhtml, static_parameters) for qhtml in question_html]
+
+
+def prepare_stage_4a_hit(still_id, description, static_parameters):
+    formatted_desc = [[word.encode('utf8') for word in sent.split()] for sent in description.split('.')][:-1]
+
+    question_html = generate_stage_4a_task_page(still_id, formatted_desc)
+    return build_hit_params(question_html, static_parameters)
+
+
+def prepare_stage_4b_hit(video, static_parameters):
+    still_id = video.gid()
+    description = video.description()
+    objects = video._data['objects']
+    question_html = []
+    for obj in objects:
+        target_obj = obj.data()['localID']
+        target_span = obj.data()['labelSpan']
+        question_html.append(generate_stage_4b_task_page(still_id,
+                                                         rejoin_formatted_desc(description, target_span), target_obj))
+    return [build_hit_params(qhtml, static_parameters) for qhtml in question_html]
+
+
+def rejoin_formatted_desc(description, replacement_span):
+    try:
+        tokenized_description = [sent.split() for sent in sent_tokenize(description)]
+        replace_word = tokenized_description[replacement_span[0]][replacement_span[1]]
+    except IndexError:
+        tokenized_description = [sent.split() for sent in description.split('.')]
+        replace_word = tokenized_description[replacement_span[0]][replacement_span[1]]
+    tokenized_description[replacement_span[0]][replacement_span[1]] = '<target>' + replace_word + '</target>'
+    joined_desc = ' '.join([' '.join([w for w in sent]) for sent in tokenized_description])
+    return joined_desc
+
+
 s3_base_path = 'https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/still_frames/'
+s3_subtask_path = 'https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/subtask_frames/'
 
 
 def display_image(still_id):

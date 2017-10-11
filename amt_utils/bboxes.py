@@ -259,6 +259,8 @@ def cluster_from_nms_stage1_b(annos, _, __):
     # flattened_rects = [item for sublist in rects_per_anno for item in sublist[0]]
     boxes = annos
     flattened_boxes = [item for sublist in boxes for item in sublist]
+    print(flattened_boxes)
+
     flattened_boxes = [box for box in flattened_boxes if box_area(rect_from_anno(box)) > 100]
     chars_present = [box['label'] for box in flattened_boxes]
     most_common = st.stats.mode(chars_present)
@@ -434,6 +436,13 @@ def draw_animation_seq(anim_seq, clusterer):
     labels = select_labels(consensus_boxes, all_boxes, 0.6)
     imgs_comb = np.hstack([np.asarray(i) for i in three_frames if i])
     return Image.fromarray(imgs_comb), consensus_boxes, labels
+
+
+def draw_object_seq(objects, clusterer):
+    images_and_boxes = [draw_image_and_labels(single_still_annos[frame_n], clusterer, frame_n) for frame_n in range(3)]
+    three_frames, consensus_boxes, all_boxes = zip(*images_and_boxes)
+    imgs_comb = np.hstack([np.asarray(i) for i in three_frames if i])
+    return Image.fromarray(imgs_comb), consensus_boxes
 
 
 # def cluster_from_annos_combined(annos, frame_number, n_turkers=3):

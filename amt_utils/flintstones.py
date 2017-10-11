@@ -240,14 +240,14 @@ def generate_stage_2b_task_page(s3_base_paths, vid_anno, template_file='stage_2b
 def generate_stage_3b_task_page(s3_base_paths, vid_anno, template_file='stage_3b.html'):
     env = Environment(loader=FileSystemLoader('hit_templates'))
     template = env.get_template(template_file)
-    vid_setting = vid_anno['setting']
-    image_url = s3_base_paths['gifs'] + vid_anno['globalID'] + '.gif'
+    vid_setting = vid_anno.setting()
+    image_url = s3_base_paths['gifs'] + vid_anno.gid() + '.gif'
     char_tuples = []
     strings_to_match = []
-    for char in vid_anno['characters']:
-        char_name = char['characterName']
+    for char in vid_anno.data()['characters']:
+        char_name = char.data()['entityLabel']
         strings_to_match.append(char_name)
-        char_url = s3_base_paths['subtask'] + char['imageID']
+        char_url = s3_base_paths['subtask'] + char.gid() + '_taskb.png'
         char_tuples.append((char_url, char_name))
     strings_to_match.append(vid_setting)
     strings_to_match = 'string_join_token'.join(strings_to_match)

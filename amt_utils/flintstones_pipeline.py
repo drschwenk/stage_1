@@ -8,25 +8,13 @@ import requests
 from tqdm import tqdm
 import PIL.Image as pilImage
 import cv2
+import re
 from IPython.display import Image
 
 
 class FlintstonesDataset(object):
     def __init__(self, video_names):
         self.data = [VideoAnnotation(vid_fn) for vid_fn in video_names]
-
-        self.main_characters = {
-            "Fred",
-            "Wilma",
-            "Mr Slate",
-            "Barney",
-            "Betty",
-            "Pebbles",
-            "Dino",
-            "Baby Puss",
-            "Hoppy",
-            "Bamm Bamm",
-        }
 
     def __repr__(self):
         return json.dumps(self.summarize_dataset(), default=lambda o: o.__dict__, sort_keys=True, indent=4)
@@ -158,6 +146,19 @@ class VideoAnnotation(object):
         self._data['status']['stage'] = 'stage_0'
         self._data['status']['go'] = True
 
+        self.main_characters_lower = {
+            "fred",
+            "wilma",
+            "mr slate",
+            "barney",
+            "betty",
+            "pebbles",
+            "dino",
+            "baby puss",
+            "hoppy",
+            "bamm bamm",
+        }
+
     def __repr__(self):
         return self.json()
 
@@ -202,6 +203,7 @@ class VideoAnnotation(object):
         if not frames:
             frames = self.get_key_frame_images()
         frames_with_boxes = self.draw_char_boxes(frames)
+        frames_with_boxes = self.draw_entity_boxes(frames_with_boxes)
         combined_image = np.hstack([np.asarray(img) for img in frames_with_boxes if img.any()])
         return pilImage.fromarray(combined_image)
 
@@ -212,11 +214,30 @@ class VideoAnnotation(object):
             open_cv_image = open_cv_image[:, :, ::].copy()
             for char in self._data['characters']:
                 char_box = np.array(char.rect(frame_idx)).reshape(2, 2)
-                char_idn = char.char_id().split('_')[-1]
+                char_idn = char.gid().split('_')[-1]
                 cv2.putText(open_cv_image,
                             char_idn, tuple(char_box[0] + np.array([0, 25])),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
                 cv2.rectangle(open_cv_image, tuple(char_box[0]), tuple(char_box[1]), color=(0, 255, 255), thickness=2)
+            drawn_frames.append(open_cv_image)
+        return drawn_frames
+
+    def draw_entity_boxes(self, img_frames):
+        drawn_frames = []
+        for frame_idx, frame_img in enumerate(img_frames):
+            open_cv_image = np.array(frame_img)
+            open_cv_image = open_cv_image[:, :, ::].copy()
+            for entity in self._data['objects']:
+                if entity.data()['entityLabel'] == 'None':
+                    continue
+                rect_list = entity.rect(frame_idx)
+                if not rect_list:
+                    rect_list = [0, 0, 0, 0]
+                char_box = np.array(rect_list).reshape(2, 2)
+                cv2.putText(open_cv_image,
+                            entity.data()['entityLabel'], tuple(char_box[0] - np.array([0, 5])),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
+                cv2.rectangle(open_cv_image, tuple(char_box[0]), tuple(char_box[1]), color=(255, 0, 255), thickness=2)
             drawn_frames.append(open_cv_image)
         return drawn_frames
 
@@ -247,8 +268,8 @@ class VideoAnnotation(object):
 
     def characters_present(self):
         chars = self._data['characters']
-        char_names_by_id = [char.name() for char in sorted(chars, key=lambda x: x.char_id())]
-        char_ids = [char.char_id() for char in sorted(chars, key=lambda x: x.char_id())]
+        char_names_by_id = [char.name() for char in sorted(chars, key=lambda x: x.gid())]
+        char_ids = [char.gid() for char in sorted(chars, key=lambda x: x.gid())]
         return list(zip(char_ids, char_names_by_id))
 
     def removal_reason(self):
@@ -260,10 +281,10 @@ class VideoAnnotation(object):
         self._data['status']['reason'] = reason
 
     def update_stage1a(self, s1_annos):
+        this_stage_removal_reason = "missing stage1a annotation"
         if self.gid() not in s1_annos:
-            self.set_status(self.stage_status(), False, "missing stage1a annotation")
+            self.set_status(self.stage_status(), False, this_stage_removal_reason)
             return
-
         character_annos = sorted(s1_annos[self.gid()], key=lambda x: x['area'], reverse=True)
 
         if not character_annos:
@@ -274,10 +295,11 @@ class VideoAnnotation(object):
         self.set_status('stage_1a')
 
     def update_stage1b(self, s1b_annos):
-        if self.removal_reason():
+        this_stage_removal_reason = "missing stage1b annotation"
+        if self.removal_reason() and self.removal_reason() != this_stage_removal_reason:
             return
         if self.gid() not in s1b_annos:
-            self.set_status(self.stage_status(), True, "missing stage1b annotation")
+            self.set_status(self.stage_status(), True, this_stage_removal_reason)
             return
 
         character_annos = self._data['characters']
@@ -295,28 +317,31 @@ class VideoAnnotation(object):
             return
 
     def update_stage3a(self, s3a_annos):
-        if self.removal_reason():
+        this_stage_removal_reason = "missing stage3a annotation"
+        if self.removal_reason() and self.removal_reason() != this_stage_removal_reason:
             return
         if self.gid() not in s3a_annos:
-            self.set_status(self.stage_status(), True, "missing stage3a annotation")
+            self.set_status(self.stage_status(), True, this_stage_removal_reason)
             return
         self._data['setting'] = s3a_annos[self.gid()]
         self.set_status('stage_3a')
 
     def update_stage3b(self, s3b_annos):
-        if self.removal_reason():
+        this_stage_removal_reason = "missing stage3b annotation"
+        if self.removal_reason() and self.removal_reason() != this_stage_removal_reason:
             return
         if self.gid() not in s3b_annos:
-            self.set_status(self.stage_status(), True, "missing stage3b annotation")
+            self.set_status(self.stage_status(), True, this_stage_removal_reason)
             return
         self._data['description'] = s3b_annos[self.gid()]
         self.set_status('stage_3b')
 
     def update_stage4a(self, s4a_annos):
-        if self.removal_reason():
+        this_stage_removal_reason = "missing stage4a annotation"
+        if self.removal_reason() and self.removal_reason() != this_stage_removal_reason:
             return
         if self.gid() not in s4a_annos:
-            self.set_status(self.stage_status(), True, "missing stage4a annotation")
+            self.set_status(self.stage_status(), True, this_stage_removal_reason)
             return
         s4a_anno = s4a_annos[self.gid()]
         self._data['objects'] = [ObjectAnnotation(obj, self.gid()) for obj in
@@ -324,13 +349,16 @@ class VideoAnnotation(object):
         if not self._data['objects']:
             self._data['objects'] = [ObjectAnnotation(('None', (0, 0)), self.gid())]
         if self._data['objects'][0].data()['localID'] == "None_0_0":
-            self.set_status('stage_4b- no objects')
+            self.set_status('stage_4b- no objects', True, '')
         else:
             self.set_status('stage_4a')
-            self.properties['has_objects'] == True
+            self.properties['has_objects'] = True
+            # _ = [char.update_4a(self._data['objects']) for char in self._data['characters']]
 
     def update_stage4b(self, s4b_annos):
-        if self.removal_reason() or self.stage_status() == 'stage_4b- no objects':
+        this_stage_removal_reason = "missing stage4b annotation"
+        if (self.removal_reason() and self.removal_reason() != this_stage_removal_reason) or self.stage_status() == \
+                'stage_4b- no objects':
             return
         if self.gid() not in s4b_annos:
             if self.stage_status() != 'stage_4b- no objects':
@@ -349,9 +377,63 @@ class VideoAnnotation(object):
             objects_by_label[obj['label']].append(obj)
 
         for label, objects in objects_by_label.items():
-            if len(objects) > 2:
-                _ = [obj.update_4b(objects) for obj in object_annos if obj._data['localID'] == label]
+            _ = [obj.update_4b(objects) for obj in object_annos if obj._data['localID'] == label]
         self.set_status('stage_4b- objects')
+
+    def convert_obj_pos_to_span(obj):
+        td1 = test_vid.description()
+        sent_lens = [len(sent.split()) + 1 for sent in td1.split('.')[:-1]]
+        sent_n, word_n = obj.data()['labelSpan']
+        word_position = sum(sent_lens[:sent_n]) + word_n
+        return (word_position, word_position + 1)
+
+    def check_overlap(self, span1, span2):
+        x1, x2 = span1
+        y1, y2 = span2
+        return (x1 < y2) and (y1 < x2)
+
+    def get_char_spans(self, char):
+        desc = self.description()
+        char_spans = [(m.start(), m.start() + len(char._data['entityLabel'].split())) for m in
+                      re.finditer(char._data['entityLabel'].lower(), desc.lower())]
+        word_spans = self.compute_word_spans()
+        return self.string_to_word_spans(char_spans[0], word_spans)
+
+    def compute_word_spans(self):
+        words = self.description().split()
+        word_spans = []
+        for idx, word in enumerate(words):
+            if word_spans:
+                last_idx = word_spans[-1][1]
+                word_spans.append((last_idx, last_idx + 1 + len(word)))
+            else:
+                word_spans.append((0, len(word) + 1))
+        return word_spans
+
+    def string_to_word_spans(self, match_span, word_spans):
+        spans = [idx for idx, word_span in enumerate(word_spans) if self.check_overlap(word_span, match_span)]
+        last_seen = []
+        for idx, word_idx in enumerate(spans):
+            if idx == 0:
+                last_seen.append(word_idx)
+            elif word_idx + 1 == last_seen[-1]:
+                last_seen.append(word_idx)
+        return spans[0], spans[-1]
+
+    def assign_char_npcs(self, entites, comp_chars=True):
+        chunk_spans = self._data['parse']['noun_phrase_chunks']['chunks']
+        chunk_names = self._data['parse']['noun_phrase_chunks']['named_chunks']
+        for ent in entites:
+            if ent._data['entityLabel'].lower() in self.main_characters_lower:
+                continue
+            if comp_chars:
+                ent_spans = self.get_char_spans(ent)
+            else:
+                ent_spans = self.convert_obj_pos_to_span(ent)
+
+            for idx, chunk_span in enumerate(chunk_spans):
+                if self.check_overlap(ent_spans, chunk_span):
+                    ent._data['labelNPC'] = chunk_names[idx]
 
 
 class BaseAnnotation(object):
@@ -359,6 +441,31 @@ class BaseAnnotation(object):
         self._data = {}
         self.properties = {
             'frame_width': 640,
+        }
+        self.main_characters = {
+            "Fred",
+            "Wilma",
+            "Mr Slate",
+            "Barney",
+            "Betty",
+            "Pebbles",
+            "Dino",
+            "Baby Puss",
+            "Hoppy",
+            "Bamm Bamm",
+        }
+
+        self.main_characters_lower = {
+            "fred",
+            "wilma",
+            "mr slate",
+            "barney",
+            "betty",
+            "pebbles",
+            "dino",
+            "baby puss",
+            "hoppy",
+            "bamm bamm",
         }
 
     def __repr__(self):
@@ -391,12 +498,6 @@ class CharacterAnnotation(BaseAnnotation):
             'globalID': '',
             'entityLabel': '',
             'rectangles': [[], [], []],
-            'nearbyObject': '',
-            # remove for now
-            # 'interactsWith': {
-            #     'positionID': '',
-            #     'name': ''
-            # }
         }
 
         self.properties['char_base'] = 'https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/' \
@@ -418,6 +519,10 @@ class CharacterAnnotation(BaseAnnotation):
         self._data['rectangles'][0] = stage_1b_boxes[0]['box'].tolist()
         self._data['rectangles'][2] = recover_original_box(stage_1b_boxes[1]['box']).tolist()
 
+    def update_4a(self, objects):
+        for obj in objects:
+            obj_label = obj.data()['entityLabel']
+
 
 class ObjectAnnotation(BaseAnnotation):
     def __init__(self, object_anno, vid_gid):
@@ -431,17 +536,13 @@ class ObjectAnnotation(BaseAnnotation):
         }
 
     def update_4b(self, object_boxes):
-        def recover_original_box(box, frame_n=1):
+        def recover_original_box(box, frame_n=0):
             box_copy = copy.deepcopy(box)
             box_copy[0] = box_copy[0] - self.properties['frame_width'] * frame_n
             box_copy[2] = box_copy[2] - self.properties['frame_width'] * frame_n
             return box_copy
 
         ordered_boxes = sorted(object_boxes, key=lambda x: x['box'][0])
-        try:
-            self._data['rectangles'][0] = ordered_boxes[0]['box'].tolist()
-            self._data['rectangles'][1] = recover_original_box(ordered_boxes[1]['box']).tolist()
-            self._data['rectangles'][2] = recover_original_box(ordered_boxes[2]['box'], 2).tolist()
-        except IndexError:
-            pass
-           # print(self.global_id(), stage_4b_boxes)
+        for box in ordered_boxes:
+            self._data['rectangles'][box['frame']] = recover_original_box(box['box'], box['frame']).tolist()
+

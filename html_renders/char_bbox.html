@@ -1,82 +1,76 @@
 <html>
 <head>
-<style>
-html, body {
-  position:absolute;
-  top:0; left:0; right:0; bottom:0;
-}
-#crosshair-h {
-  width: 100%;
-}
-
-#crosshair-v {
-  height: 100%;
-}
-
-.hair {
-  position: fixed;
-  top:0; left:0;
-  background: transparent;
-  border-top: 1px dotted #000;
-  border-left: 1px dotted #000;
-  pointer-events: none;
-  z-index: 2;
-}
-</style>
 <title>Character Annotation</title>
-<link rel='stylesheet' href='//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/themes/smoothness/jquery-ui.css' />
-<script src='//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js'></script>
-<script src='//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.js'></script>
+<link rel="stylesheet" href="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/themes/smoothness/jquery-ui.css" />
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+<script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.js"></script>
 <script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js'></script>
 <script src='https://cdnjs.cloudflare.com/ajax/libs/json3/3.3.2/json3.min.js'></script>
 <script src='https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js'></script>
 <script src='https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.6.0/underscore-min.js'></script>
 <script type='text/javascript' src='https://s3.amazonaws.com/mturk-public/externalHIT_v1.js'></script>
-<script src='https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/interface_elems/bbox_annotator.js'></script>
+<script src="https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/interface_elems/bbox_annotator.js"></script>
 </head>
 <body>
 
 <h4>
-The goal of this task is to draw a box around a particular character in both of the frames shown below
+The goal of this task is to locate and label all of the characters in this image. <br>The task is broken up into two steps, with a bonus
+for minor characters labeled in the second step.
 </h4>
-  <ul>
-    <li>Draw a box around the character where they appear in the two frames below.</li>
-    <li>The character might not appear in both</li>
-    <li>You should ignore characters other than the one shown</li>
-    <li>The boxes should be drawn tightly, but all parts of a character should be inside it</li>
-    <li>If the character is in neither frame, you can just submit</li>
-  </ul>
-    <br>
-    <p>
-    Here's an example of the task:
-    <a href='https://s3-us-west-2.amazonaws.com//ai2-vision-animation-gan/annotation_data/interface_elems/instructions_stage_1/example_boxes.gif'>
-      examples of the tasks
-    </a>
-  </p>
+<ul>
+    <b>Step 1: Main characters</b>
+  <li>Draw boxes around any and all of the 10 main characters that appear in this image</li>
+  <li>Scroll down to see a list of the 10 main characters if you need a reminder</li>
+  <li>After drawing a box around a main character, label them by choosing their name from the menu</li>
+  <li>The boxes should be drawn tightly, but all parts of a character should be inside it</li>
+  <br>
+  <li>If there are no characters at all in the frame, draw a box anywhere, select "Empty Frame" and submit the HIT</li>
+  <li>If there are minor characters present (characters not in the 10 below), click the "Do Step 2" button and go to Step 2</li>
+  <li>If there were only main characters you should skip Step 2 and submit the HIT now</li>
+  <br>
+  <b>Step 2: Minor characters (Bonus per character)</b>
+  <li>Draw boxes around minor characters in the same way, but instead of choosing the name from a list, you should
+    write a short description of that character</li>
+  <li>This description should be something that identifies the character, for example-
+    "man with bow tie", "construction worker", or "circus performer".</li>
+    <li>There will be a 1 cent bonus for every character you label in this step</li>
+    <li>After labeling all of minor other characters, you can submit the HIT</li>
+</ul>
+<p>
+Here are three examples of the task:
+<a href="https://s3-us-west-2.amazonaws.com//ai2-vision-animation-gan/annotation_data/interface_elems/instructions_stage_1/example_mains.gif">
+  all main characters...
+</a>
 <br>
-<h4>
-Here is the character to draw boxes around:
-</h4>
-  <img id='target_char'
-       src='https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/subtask_frames/s_02_e_01_shot_011009_011083_char_0_taskb.png'>
-<hr>
-<h4>
-  Draw a box around this character in both frames below.
-</h4>
-<div id='bbox_annotator' style='display:inline-block'></div>
-<div style='display:inline-block;vertical-align:top;'>
+<a href="https://s3-us-west-2.amazonaws.com//ai2-vision-animation-gan/annotation_data/interface_elems/instructions_stage_1/example_only_min.gif">
+  all minor characters...
+</a>
+<br>
+<a href="https://s3-us-west-2.amazonaws.com//ai2-vision-animation-gan/annotation_data/interface_elems/instructions_stage_1/example_minors.gif">
+  main characters and other characters...
+</a>
+<br>
+<a href="https://s3-us-west-2.amazonaws.com//ai2-vision-animation-gan/annotation_data/interface_elems/instructions_stage_1/example_none.gif">
+  and empty frame.
+</a>
+<br>
+</p>
+<br>
+<div id="bbox_annotator" style="display:inline-block"></div>
+<div style="display:inline-block;vertical-align:top;">
   <!-- <div>
-    <textarea id='annotation_data' name='annotation' rows='30' cols='50' style='font-family:monospace;' readonly></textarea>
+    <textarea id="annotation_data" name="annotation" rows="30" cols="50" style="font-family:monospace;" readonly></textarea>
   </div> -->
   <script type='text/json' id='input'>
 </script>
   <div>
-    <input id='annotation_data_mains' name='annotation_data_mains' type='hidden' />
+    <input id="annotation_data_mains" name="annotation_data_mains" type="hidden" />
     <br>
-    <input id='annotation_data_others' name='annotation_data_others' type='hidden' />
+    <input id="annotation_data_others" name="annotation_data_others" type="hidden" />
 
     <br>
-    <!-- <input id='reset_button' type='reset' /> -->
+    <!-- <input id="reset_button" type="reset" /> -->
+    <input id="other_character" type="button" value="Do step 2"/>
     <form id='results-form' method='post' action='dummy' class='text-center'>
       <input type='hidden' value='' name='assignmentId' id='assignmentId'/>
       <input type='hidden' value='' name='output' id='output'/>
@@ -85,6 +79,10 @@ Here is the character to draw boxes around:
     </form>
   </div>
 </div>
+<h3> These are the main characters: </h3>
+<img id="mains_1" src="https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/interface_elems/mc_row1.png">
+<img id="mains_2" src="https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/interface_elems/mc_row2.png">
+
 
 <script>
 var simpleamt = (function() {
@@ -129,67 +127,97 @@ var simpleamt = (function() {
 
 })();
 </script>
-<div id='crosshair-h' class='hair'></div>
-<div id='crosshair-v' class='hair'></div>
-<script type='text/javascript'>
+
+<script type="text/javascript">
 function getParameterByName(name) {
   var match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
   return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
 }
 $(document).ready(function() {
-  var inputMethod = getParameterByName('input');
-  var assignment_id = turkGetParam('assignmentId', '');
-  var image_url =  'https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/subtask_frames/s_02_e_01_shot_011009_011083_taskb.png';
-  var image_id = 's_02_e_01_shot_011009_011083_taskb.png';
-  var char_id = 's_02_e_01_shot_011009_011083_char_0_taskb.png';
-  // var image_url =  'example.jpg';
+  var inputMethod = getParameterByName("input");
+  var assignment_id = turkGetParam('assignmentId', "");
+  var image_url =  "https://s3-us-west-2.amazonaws.com/ai2-vision-animation-gan/annotation_data/still_frames/s_04_e_09_shot_012197_012271_40.png";
+  var image_id = "s_04_e_09_shot_012197_012271_40.png";
+  // var image_url =  "example.jpg";
   // Initialize the bounding-box annotator.
   var annotator = new BBoxAnnotator({
     url: image_url,
     frame: 'image_frame_1',
-    input_method: inputMethod || 'fixed',
-    labels: [char_id],
+    input_method: inputMethod || "select",
+    // input_method: "select",
+    labels: ["Fred",
+             "Barney",
+              "Wilma",
+              "Betty",
+              "Pebbles",
+              "Bamm Bamm",
+              "Dino",
+              "Mr Slate",
+              "Baby Puss",
+              "Hoppy",
+              "Empty Frame"
+              ],
     onchange: function(entries) {
-      if (
-          assignment_id != '' &&
-          assignment_id != 'ASSIGNMENT_ID_NOT_AVAILABLE') {
+      if (entries.length > 0 &&
+          assignment_id != "" &&
+          assignment_id != "ASSIGNMENT_ID_NOT_AVAILABLE") {
           $('#submit-btn').prop('disabled', false);
       }
       else {
-        $('#submitButton').attr('disabled', 'disabled');
+        $("#submitButton").attr("disabled", "disabled");
 
       }
-      // Input the text area on change. Use 'hidden' input tag unless debugging.
-      // <input id='annotation_data' name='annotation_data' type='hidden' />
-      $('#annotation_data_mains').val(JSON.stringify(entries))
+      // Input the text area on change. Use "hidden" input tag unless debugging.
+      // <input id="annotation_data" name="annotation_data" type="hidden" />
+      $("#annotation_data_mains").val(JSON.stringify(entries))
     }
   });
-
   // Initialize the reset button.
-  $('#reset_button').click(function(e) {
+  $("#reset_button").click(function(e) {
     annotator.clear_all();
   })
-  $('#submitButton').attr('disabled', 'disable');
+  $("#other_character").click(function(e) {
+    document.getElementById("mains_1").style.display = 'none';
+    document.getElementById("mains_2").style.display = 'none';
+    document.getElementById("image_frame_1").style.display = 'none';
+    $("#other_character").attr("disabled", "disabled");
+    $("#other_character").attr("value", "Now on Step 2");
+    var new_annotator = new BBoxAnnotator({
+      url: image_url,
+      input_method: "text",
+      frame: 'image_frame_2',
+      onchange: function(entries) {
+        if (entries.length > 0 &&
+            assignment_id != "" &&
+            assignment_id != "ASSIGNMENT_ID_NOT_AVAILABLE") {
+            $('#submit-btn').prop('disabled', false);
+        }
+        else {
+          $("#submitButton").attr("disabled", "disabled");
+
+        }
+        // Input the text area on change. Use "hidden" input tag unless debugging.
+        // <input id="annotation_data" name="annotation_data" type="hidden" />
+        $("#annotation_data_others").val(JSON.stringify(entries))
+      }
+    });
+    for (i = 0; i < annotator.entries.length; i++) {
+      new_annotator.add_entry(annotator.entries[i]);
+    }
+  })
+
+  $("#submitButton").attr("disabled", "disabled");
   simpleamt.setupSubmit();
   $('#submit-btn').click(function() {
-
-  var combined_annotations = JSON.parse($('#annotation_data_mains').val());
-
+    try {
+      var combined_annotations = JSON.parse($('#annotation_data_others').val());
+    }
+      catch(e) {
+        var combined_annotations = JSON.parse($('#annotation_data_mains').val());
+    }
     simpleamt.setOutput({'stillID': image_id, 'characterBoxes': JSON.stringify(combined_annotations)});
   });
-  var cH = $('#crosshair-h'),
-    cV = $('#crosshair-v');
 
-  $(this).on('mousemove', function(e) {
-    var x = e.clientX - 1;
-    var y = e.clientY - 1;
-    cH.css('top', e.clientY);
-    cV.css('left', e.clientX);
-    $('#mousepos').css({
-      top: e.clientY + 'px',
-      left: e.clientX + 'px'
-    }, 800);
-  });
 });
 </script>
 

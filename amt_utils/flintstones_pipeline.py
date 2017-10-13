@@ -5,7 +5,8 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 import requests
-from tqdm import tqdm
+from nltk.tokenize import sent_tokenize
+from nltk.tokenize import word_tokenize
 import PIL.Image as pilImage
 import cv2
 import re
@@ -101,6 +102,10 @@ class FlintstonesDataset(object):
     def sorted_by_episode(self):
         return sorted(self.data, key=lambda x: x.gid())
 
+    def prepare_release_version(self):
+        to_release = copy.deepcopy(self)
+        
+
     def write_to_json(self, version, out_dir='dataset'):
         to_json = copy.deepcopy(self.data)
         for vid in to_json:
@@ -163,7 +168,10 @@ class VideoAnnotation(object):
         return self.json()
 
     def json(self):
-        return json.dumps(self.data(), default=lambda o: o.__dict__, sort_keys=True, indent=4)
+        to_json = copy.deepcopy(self)
+        to_json._data['characters'] = [char.data() for char in to_json._data['characters']]
+        to_json._data['objects'] = [obj.data() for obj in to_json._data['objects']]
+        return json.dumps(to_json.data(), default=lambda o: o.__dict__, sort_keys=True, indent=4)
 
     def data(self):
         return self._data
@@ -337,6 +345,33 @@ class VideoAnnotation(object):
         self.set_status('stage_3b')
 
     def update_stage4a(self, s4a_annos):
+
+        def pass_object(obj):
+            body_parts = [
+                'arm',
+                'hand',
+                'leg',
+                'foot',
+                'head',
+                'eye',
+                'hip',
+                'shoulder',
+                'mouth',
+                'lip',
+                'chest',
+                'back',
+                'torso',
+                'neck',
+                'ear'
+            ]
+            obj = obj.replace(',', '')
+            if obj == self.setting():
+                return False
+            for body_part in body_parts:
+                if obj == body_part or obj == body_part + 's':
+                    return False
+            return True
+
         this_stage_removal_reason = "missing stage4a annotation"
         if self.removal_reason() and self.removal_reason() != this_stage_removal_reason:
             return
@@ -345,10 +380,11 @@ class VideoAnnotation(object):
             return
         s4a_anno = s4a_annos[self.gid()]
         self._data['objects'] = [ObjectAnnotation(obj, self.gid()) for obj in
-                                 zip(s4a_anno['descriptors'], s4a_anno['spans']) if obj[0] != self.setting()]
+                                 zip(s4a_anno['descriptors'], s4a_anno['spans']) if pass_object(obj[0])]
         if not self._data['objects']:
             self._data['objects'] = [ObjectAnnotation(('None', (0, 0)), self.gid())]
         if self._data['objects'][0].data()['localID'] == "None_0_0":
+            self._data['objects'] = []
             self.set_status('stage_4b- no objects', True, '')
         else:
             self.set_status('stage_4a')
@@ -378,14 +414,16 @@ class VideoAnnotation(object):
 
         for label, objects in objects_by_label.items():
             _ = [obj.update_4b(objects) for obj in object_annos if obj._data['localID'] == label]
+
         self.set_status('stage_4b- objects')
 
-    def convert_obj_pos_to_span(obj):
-        td1 = test_vid.description()
-        sent_lens = [len(sent.split()) + 1 for sent in td1.split('.')[:-1]]
+    def convert_obj_pos_to_span(self, obj):
+        des = self.description()
+        raw_sentences = sent_tokenize(des)
+        sent_lens = [len(word_tokenize(s)) for s in raw_sentences]
         sent_n, word_n = obj.data()['labelSpan']
         word_position = sum(sent_lens[:sent_n]) + word_n
-        return (word_position, word_position + 1)
+        return word_position, word_position + len(obj.data()['entityLabel'].split())
 
     def check_overlap(self, span1, span2):
         x1, x2 = span1
@@ -394,20 +432,22 @@ class VideoAnnotation(object):
 
     def get_char_spans(self, char):
         desc = self.description()
-        char_spans = [(m.start(), m.start() + len(char._data['entityLabel'].split())) for m in
+        char_spans = [(m.start(), m.start() + len(char._data['entityLabel'])) for m in
                       re.finditer(char._data['entityLabel'].lower(), desc.lower())]
         word_spans = self.compute_word_spans()
         return self.string_to_word_spans(char_spans[0], word_spans)
 
     def compute_word_spans(self):
-        words = self.description().split()
+        raw_sentences = sent_tokenize(self.description())
+        spaced_desc = [word_tokenize(s) for s in raw_sentences]
+        words = [word for sent in spaced_desc for word in sent]
         word_spans = []
         for idx, word in enumerate(words):
             if word_spans:
                 last_idx = word_spans[-1][1]
                 word_spans.append((last_idx, last_idx + 1 + len(word)))
             else:
-                word_spans.append((0, len(word) + 1))
+                word_spans.append((0, len(word)))
         return word_spans
 
     def string_to_word_spans(self, match_span, word_spans):
@@ -416,24 +456,42 @@ class VideoAnnotation(object):
         for idx, word_idx in enumerate(spans):
             if idx == 0:
                 last_seen.append(word_idx)
-            elif word_idx + 1 == last_seen[-1]:
+            elif word_idx == last_seen[-1] + 1:
                 last_seen.append(word_idx)
-        return spans[0], spans[-1]
+        return last_seen[0], last_seen[-1] + 1
 
-    def assign_char_npcs(self, entites, comp_chars=True):
+    def assign_ent_npcs(self, entites, comp_chars=True):
         chunk_spans = self._data['parse']['noun_phrase_chunks']['chunks']
         chunk_names = self._data['parse']['noun_phrase_chunks']['named_chunks']
         for ent in entites:
-            if ent._data['entityLabel'].lower() in self.main_characters_lower:
-                continue
-            if comp_chars:
-                ent_spans = self.get_char_spans(ent)
-            else:
-                ent_spans = self.convert_obj_pos_to_span(ent)
+            try:
+                if ent._data['entityLabel'].lower() in self.main_characters_lower:
+                    ent_spans = self.get_char_spans(ent)
+                    ent._data['entitySpan'] = ent_spans
 
-            for idx, chunk_span in enumerate(chunk_spans):
-                if self.check_overlap(ent_spans, chunk_span):
-                    ent._data['labelNPC'] = chunk_names[idx]
+                    continue
+                if comp_chars:
+                    ent_spans = self.get_char_spans(ent)
+                else:
+                    ent_spans = self.convert_obj_pos_to_span(ent)
+                ent._data['entitySpan'] = ent_spans
+                # print(ent._data['entityLabel'], ent._data['entitySpan'])
+                for idx, chunk_span in enumerate(chunk_spans):
+                    # print(ent._data['entityLabel'])
+                    # print(ent_spans, chunk_span, chunk_names[idx])
+                    # print(self.check_overlap(ent_spans, chunk_span))
+                    if self.check_overlap(ent_spans, chunk_span):
+                        if comp_chars:
+                            try:
+                                object_npcs = [obj.data()['labelNPC'] for obj in self.data()['objects']]
+                            except KeyError:
+                                print('fail', ent.gid())
+                                continue
+                            if chunk_names[idx] in object_npcs:
+                                continue
+                        ent._data['labelNPC'] = chunk_names[idx]
+            except IndexError:
+                print(ent.gid())
 
 
 class BaseAnnotation(object):
@@ -453,19 +511,6 @@ class BaseAnnotation(object):
             "Baby Puss",
             "Hoppy",
             "Bamm Bamm",
-        }
-
-        self.main_characters_lower = {
-            "fred",
-            "wilma",
-            "mr slate",
-            "barney",
-            "betty",
-            "pebbles",
-            "dino",
-            "baby puss",
-            "hoppy",
-            "bamm bamm",
         }
 
     def __repr__(self):
@@ -505,6 +550,7 @@ class CharacterAnnotation(BaseAnnotation):
 
         self._data['globalID'] = vid_gid + '_char_' + str(char_idx)
         self._data['entityLabel'] = char_basics['chosen_labels']
+        self._data['labelNPC'] = self._data['entityLabel']
         self._data['rectangles'][1] = char_basics['box'].tolist()
 
     def update_1b(self, idx, stage_1b_boxes):
@@ -519,9 +565,9 @@ class CharacterAnnotation(BaseAnnotation):
         self._data['rectangles'][0] = stage_1b_boxes[0]['box'].tolist()
         self._data['rectangles'][2] = recover_original_box(stage_1b_boxes[1]['box']).tolist()
 
-    def update_4a(self, objects):
-        for obj in objects:
-            obj_label = obj.data()['entityLabel']
+    # def update_4a(self, objects):
+    #     for obj in objects:
+    #         obj_label = obj.data()['entityLabel']
 
 
 class ObjectAnnotation(BaseAnnotation):
@@ -531,6 +577,7 @@ class ObjectAnnotation(BaseAnnotation):
             'rectangles': [[], [], []],
             'entityLabel': object_anno[0],
             'labelSpan': object_anno[1],
+            'labelNPC': object_anno[0],
             'localID': '_'.join([object_anno[0], '_'.join([str(sp) for sp in object_anno[1]])]),
             'globalID': '_'.join([vid_gid, object_anno[0], '_'.join([str(sp) for sp in object_anno[1]])])
         }
